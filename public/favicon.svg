@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Background Shield -->
+  <path d="M32 4L54 14V34C54 46.5 44.5 56.5 32 60C19.5 56.5 10 46.5 10 34V14L32 4Z" fill="#111E30" stroke="#C8A96B" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- Inner Shield Facet -->
+  <path d="M32 8L49 16.5V33C49 43 41.8 51.5 32 55.5V8Z" fill="#17263A" opacity="0.6"/>
+  <!-- Upward Chevron / Arrow -->
+  <path d="M32 18L44 32H36V46H28V32H20L32 18Z" fill="#C8A96B"/>
+  <!-- Polaris Star / Direction Compass Center -->
+  <path d="M32 12L33.8 16.5L38 18L33.8 19.5L32 24L30.2 19.5L26 18L30.2 16.5L32 12Z" fill="#F4F3EF"/>
+  <!-- Steel Blue Subtle Wings -->
+  <path d="M19 36L25 36L28 42L22 42Z" fill="#6F91B8" opacity="0.8"/>
+  <path d="M45 36L39 36L36 42L42 42Z" fill="#6F91B8" opacity="0.8"/>
+</svg>

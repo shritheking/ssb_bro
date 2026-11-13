@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 80" fill="none">
+  <!-- Monochrome White/Silver Version -->
+  <g transform="translate(6, 4) scale(0.64)">
+    <path d="M60 10L102 28V64C102 88.5 83.5 106.5 60 112C36.5 106.5 18 88.5 18 64V28L60 10Z" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M60 30L80 54H68V82H52V54H40L60 30Z" fill="#FFFFFF"/>
+    <path d="M60 18L63 26L71 29L63 32L60 40L57 32L49 29L57 26L60 18Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Wordmark Text -->
+  <text x="96" y="44" font-family="'Space Grotesk', system-ui, sans-serif" font-weight="800" font-size="34" letter-spacing="0.06em" fill="#FFFFFF">
+    SSB BRO
+  </text>
+  
+  <text x="98" y="62" font-family="'Inter', system-ui, sans-serif" font-weight="600" font-size="10.5" letter-spacing="0.28em" fill="#FFFFFF" opacity="0.75">
+    ASPIRANT DEVELOPMENT
+  </text>
+</svg>
