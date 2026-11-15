@@ -233,7 +233,9 @@ export const ZoomMeetingPage: React.FC = () => {
     fileSize: string;
     fileName: string;
     blobUrl: string | null;
+    orientation: 'portrait' | 'landscape';
   } | null>(null);
+  const [recordingOrientation, setRecordingOrientation] = useState<'auto' | 'portrait' | 'landscape'>('auto');
   const [isSavedToDevice, setIsSavedToDevice] = useState(false);
   const [driveUploadStatus, setDriveUploadStatus] = useState<'idle' | 'authorizing' | 'uploading' | 'success' | 'error' | 'opened_drive'>('idle');
   const [driveProgress, setDriveProgress] = useState(0);
@@ -797,236 +799,463 @@ export const ZoomMeetingPage: React.FC = () => {
   };
 
   // ──────────────────────────────────────────────────────────
-  // 4. STUDIO COMPOSITOR & RECORDING (RECORDS FULL LIVE CLASS)
+  // 4. SMART AUTO-ROTATING STUDIO COMPOSITOR & RECORDING
   // ──────────────────────────────────────────────────────────
+  // Helper to draw image/video with object-fit: cover into canvas without distortion
+  const drawCover = (
+    ctx: CanvasRenderingContext2D,
+    source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
+  ) => {
+    const sw = (source as HTMLVideoElement).videoWidth || (source as HTMLImageElement).naturalWidth || source.width || dw;
+    const sh = (source as HTMLVideoElement).videoHeight || (source as HTMLImageElement).naturalHeight || source.height || dh;
+    if (!sw || !sh) {
+      ctx.drawImage(source, dx, dy, dw, dh);
+      return;
+    }
+    const sAspect = sw / sh;
+    const dAspect = dw / dh;
+    let sx = 0, sy = 0, cropW = sw, cropH = sh;
+    if (sAspect > dAspect) {
+      cropW = sh * dAspect;
+      sx = (sw - cropW) / 2;
+    } else {
+      cropH = sw / dAspect;
+      sy = (sh - cropH) / 2;
+    }
+    ctx.drawImage(source, sx, sy, cropW, cropH, dx, dy, dw, dh);
+  };
+
   const renderStudioFrame = (ctx: CanvasRenderingContext2D, width: number, height: number, secElapsed: number) => {
+    const isPortrait = height > width;
+
     // 1. Studio Background
     ctx.fillStyle = '#080E18';
     ctx.fillRect(0, 0, width, height);
 
-    // 2. Main Stage Area
-    const stageX = 16;
-    const stageY = 54;
-    const stageW = 1248;
-    const stageH = 612;
+    if (isPortrait) {
+      // ══════════════════════════════════════════════════════════════
+      // MOBILE PORTRAIT (VERTICAL 720×1280) - UPRIGHT PHONE LAYOUT
+      // ══════════════════════════════════════════════════════════════
+      const pad = 16;
+      const stageW = width - pad * 2; // 688
+      const headerH = 56;
+      const footerH = 48;
+      const availH = height - headerH - footerH - pad * 3;
+      const topStageH = Math.floor(availH * 0.52); // ~586
+      const btmStageH = availH - topStageH; // ~542
+      const topStageY = headerH + pad;
+      const btmStageY = topStageY + topStageH + pad;
 
-    ctx.save();
-    ctx.beginPath();
-    if (typeof (ctx as any).roundRect === 'function') {
-      (ctx as any).roundRect(stageX, stageY, stageW, stageH, 16);
-    } else {
-      ctx.rect(stageX, stageY, stageW, stageH);
-    }
-    ctx.clip();
-
-    if (isSharingScreen && screenShareType === 'whiteboard' && whiteboardCanvasRef.current) {
-      // 2A. Interactive Whiteboard
-      ctx.fillStyle = '#111827';
-      ctx.fillRect(stageX, stageY, stageW, stageH);
-      ctx.drawImage(whiteboardCanvasRef.current, stageX, stageY, stageW, stageH);
-
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(stageX + 16, stageY + 16, 220, 32);
-      ctx.fillStyle = '#E6B980';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('Interactive Whiteboard', stageX + 26, stageY + 37);
-    } else if (isSharingScreen && screenShareType === 'tat') {
-      // 2B. TAT Slide Stage
-      const slide = ssbTatSlides[tatSlideIndex];
-      if (tatSlideImageRef.current && tatSlideImageRef.current.complete && tatSlideImageRef.current.naturalWidth > 0) {
-        ctx.drawImage(tatSlideImageRef.current, stageX, stageY, stageW, stageH);
-      } else {
-        ctx.fillStyle = '#141E2E';
-        ctx.fillRect(stageX, stageY, stageW, stageH);
-      }
-
-      // Vignette
-      const grad = ctx.createLinearGradient(0, stageY, 0, stageY + stageH);
-      grad.addColorStop(0, 'rgba(0,0,0,0.8)');
-      grad.addColorStop(0.3, 'rgba(0,0,0,0.15)');
-      grad.addColorStop(0.7, 'rgba(0,0,0,0.2)');
-      grad.addColorStop(1, 'rgba(0,0,0,0.9)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(stageX, stageY, stageW, stageH);
-
-      // Slide Title
-      ctx.fillStyle = '#E6B980';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillText(slide.title, stageX + 24, stageY + 44);
-
-      // Timer & Phase
-      const timerStr = `${tatPhase === 'observe' ? 'Observe' : 'Write'}: ${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s left`;
-      ctx.fillStyle = tatPhase === 'observe' ? '#EF4444' : '#10B981';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText(timerStr, stageX + 24, stageY + 74);
-    } else if (isSharingScreen && screenShareType === 'wat') {
-      // 2C. WAT Stage
-      const word = ssbWatWords[watIndex] || 'LEADERSHIP';
-      ctx.fillStyle = '#0D1522';
-      ctx.fillRect(stageX, stageY, stageW, stageH);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 68px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(word, width / 2, stageY + stageH / 2 - 20);
-
-      ctx.fillStyle = '#E6B980';
-      ctx.font = 'bold 22px monospace';
-      ctx.fillText(`Word ${watIndex + 1} of 60 • ${watTimeRemaining}s`, width / 2, stageY + stageH / 2 + 45);
-      ctx.textAlign = 'left';
-    } else if (isSharingScreen && screenShareType === 'srt') {
-      // 2D. SRT Stage
-      const srtObj = ssbSrtSituations[srtIndex];
-      ctx.fillStyle = '#0D1522';
-      ctx.fillRect(stageX, stageY, stageW, stageH);
-
-      ctx.fillStyle = '#E6B980';
-      ctx.font = 'bold 22px sans-serif';
-      ctx.fillText(`Situation ${srtIndex + 1} of 15 • ${srtTimeRemaining}s left`, stageX + 50, stageY + 100);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = '22px sans-serif';
-      const words = srtObj.text.split(' ');
-      let line = '';
-      let curY = stageY + 160;
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > stageW - 100 && n > 0) {
-          ctx.fillText(line, stageX + 50, curY);
-          line = words[n] + ' ';
-          curY += 34;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, stageX + 50, curY);
-    } else if (isSharingScreen && screenStream && screenVideoRef.current && screenVideoRef.current.readyState >= 2) {
-      // 2E. Screen Share
-      ctx.drawImage(screenVideoRef.current, stageX, stageY, stageW, stageH);
-    } else {
-      // 2F. Live Class Mentor Teaching Stage (Lt. Vamshi E.)
-      if (mentorImageRef.current && mentorImageRef.current.complete && mentorImageRef.current.naturalWidth > 0) {
-        const img = mentorImageRef.current;
-        const imgAspect = img.width / img.height;
-        const stageAspect = stageW / stageH;
-        let drawW = stageW;
-        let drawH = stageH;
-        let offX = stageX;
-        let offY = stageY;
-        if (imgAspect > stageAspect) {
-          drawW = stageH * imgAspect;
-          offX = stageX - (drawW - stageW) / 2;
-        } else {
-          drawH = stageW / imgAspect;
-          offY = stageY - (drawH - stageH) / 2;
-        }
-        ctx.drawImage(img, offX, offY, drawW, drawH);
-      } else {
-        ctx.fillStyle = '#141F30';
-        ctx.fillRect(stageX, stageY, stageW, stageH);
-        ctx.fillStyle = '#E6B980';
-        ctx.font = 'bold 36px sans-serif';
-        ctx.fillText(mentor, stageX + 60, stageY + stageH / 2);
-      }
-
-      // Bottom shadow gradient
-      const grad = ctx.createLinearGradient(0, stageY + stageH - 120, 0, stageY + stageH);
-      grad.addColorStop(0, 'rgba(0,0,0,0)');
-      grad.addColorStop(1, 'rgba(0,0,0,0.85)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(stageX, stageY + stageH - 120, stageW, 120);
-
-      // Mentor Nameplate
-      ctx.fillStyle = 'rgba(8, 14, 24, 0.9)';
-      ctx.fillRect(stageX + 24, stageY + stageH - 74, 380, 52);
-
-      ctx.fillStyle = '#10B981';
+      // TOP SECTION: LIVE CLASS / MENTOR / SIMULATION STAGE
+      ctx.save();
       ctx.beginPath();
-      ctx.arc(stageX + 44, stageY + stageH - 48, 6, 0, Math.PI * 2);
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pad, topStageY, stageW, topStageH, 16);
+      } else {
+        ctx.rect(pad, topStageY, stageW, topStageH);
+      }
+      ctx.clip();
+
+      if (isSharingScreen && screenShareType === 'whiteboard' && whiteboardCanvasRef.current) {
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(pad, topStageY, stageW, topStageH);
+        drawCover(ctx, whiteboardCanvasRef.current, pad, topStageY, stageW, topStageH);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(pad + 16, topStageY + 16, 200, 32);
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText('Live Whiteboard', pad + 26, topStageY + 37);
+      } else if (isSharingScreen && screenShareType === 'tat') {
+        const slide = ssbTatSlides[tatSlideIndex];
+        if (tatSlideImageRef.current && tatSlideImageRef.current.complete && tatSlideImageRef.current.naturalWidth > 0) {
+          drawCover(ctx, tatSlideImageRef.current, pad, topStageY, stageW, topStageH);
+        } else {
+          ctx.fillStyle = '#141E2E';
+          ctx.fillRect(pad, topStageY, stageW, topStageH);
+        }
+
+        const grad = ctx.createLinearGradient(0, topStageY, 0, topStageY + topStageH);
+        grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+        grad.addColorStop(0.3, 'rgba(0,0,0,0.15)');
+        grad.addColorStop(0.7, 'rgba(0,0,0,0.2)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(pad, topStageY, stageW, topStageH);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(slide.title, pad + 20, topStageY + 40);
+
+        const timerStr = `${tatPhase === 'observe' ? 'Observe' : 'Write'}: ${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s left`;
+        ctx.fillStyle = tatPhase === 'observe' ? '#EF4444' : '#10B981';
+        ctx.font = 'bold 15px monospace';
+        ctx.fillText(timerStr, pad + 20, topStageY + 68);
+      } else if (isSharingScreen && screenShareType === 'wat') {
+        const word = ssbWatWords[watIndex] || 'LEADERSHIP';
+        ctx.fillStyle = '#0D1522';
+        ctx.fillRect(pad, topStageY, stageW, topStageH);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 54px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(word, width / 2, topStageY + topStageH / 2 - 15);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 20px monospace';
+        ctx.fillText(`Word ${watIndex + 1} of 60 • ${watTimeRemaining}s`, width / 2, topStageY + topStageH / 2 + 40);
+        ctx.textAlign = 'left';
+      } else if (isSharingScreen && screenShareType === 'srt') {
+        const srtObj = ssbSrtSituations[srtIndex];
+        ctx.fillStyle = '#0D1522';
+        ctx.fillRect(pad, topStageY, stageW, topStageH);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText(`Situation ${srtIndex + 1} of 15 • ${srtTimeRemaining}s`, pad + 24, topStageY + 60);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '19px sans-serif';
+        const words = srtObj.text.split(' ');
+        let line = '';
+        let curY = topStageY + 110;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > stageW - 50 && n > 0) {
+            ctx.fillText(line, pad + 24, curY);
+            line = words[n] + ' ';
+            curY += 30;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, pad + 24, curY);
+      } else if (isSharingScreen && screenStream && screenVideoRef.current && screenVideoRef.current.readyState >= 2) {
+        drawCover(ctx, screenVideoRef.current, pad, topStageY, stageW, topStageH);
+      } else {
+        // Mentor Teaching Stage
+        if (mentorImageRef.current && mentorImageRef.current.complete && mentorImageRef.current.naturalWidth > 0) {
+          drawCover(ctx, mentorImageRef.current, pad, topStageY, stageW, topStageH);
+        } else {
+          ctx.fillStyle = '#141F30';
+          ctx.fillRect(pad, topStageY, stageW, topStageH);
+          ctx.fillStyle = '#E6B980';
+          ctx.font = 'bold 32px sans-serif';
+          ctx.fillText(mentor, pad + 30, topStageY + topStageH / 2);
+        }
+
+        const grad = ctx.createLinearGradient(0, topStageY + topStageH - 100, 0, topStageY + topStageH);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(pad, topStageY + topStageH - 100, stageW, 100);
+
+        ctx.fillStyle = 'rgba(8, 14, 24, 0.9)';
+        ctx.fillRect(pad + 16, topStageY + topStageH - 64, 340, 48);
+
+        ctx.fillStyle = '#10B981';
+        ctx.beginPath();
+        ctx.arc(pad + 34, topStageY + topStageH - 40, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText(`${mentor} (Host)`, pad + 48, topStageY + topStageH - 43);
+        ctx.fillStyle = '#E6B980';
+        ctx.font = '11px sans-serif';
+        ctx.fillText('AIR 34 CDS 2 2019 • 3 AFSB Recommended', pad + 48, topStageY + topStageH - 26);
+      }
+      ctx.restore();
+
+      // Top Stage Border
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pad, topStageY, stageW, topStageH, 16);
+      } else {
+        ctx.rect(pad, topStageY, stageW, topStageH);
+      }
+      ctx.stroke();
+
+      // BOTTOM SECTION: CANDIDATE LIVE CAMERA FEED (UPRIGHT FULL VIEW)
+      ctx.save();
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pad, btmStageY, stageW, btmStageH, 16);
+      } else {
+        ctx.rect(pad, btmStageY, stageW, btmStageH);
+      }
+      ctx.clip();
+
+      if (!isVideoOff && userVideoRef.current && userVideoRef.current.readyState >= 2) {
+        drawCover(ctx, userVideoRef.current, pad, btmStageY, stageW, btmStageH);
+      } else {
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(pad, btmStageY, stageW, btmStageH);
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('AS', width / 2, btmStageY + btmStageH / 2 - 10);
+        ctx.font = '14px sans-serif';
+        ctx.fillText('Camera Off', width / 2, btmStageY + btmStageH / 2 + 25);
+        ctx.textAlign = 'left';
+      }
+
+      // Candidate Lower-Third Tag
+      ctx.fillStyle = 'rgba(8, 14, 24, 0.85)';
+      ctx.fillRect(pad + 16, btmStageY + btmStageH - 54, 280, 38);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText(`Chest 24 (${candidateName})`, pad + 28, btmStageY + btmStageH - 30);
+
+      ctx.restore();
+
+      // Bottom Stage Border (Gold)
+      ctx.strokeStyle = 'rgba(230, 185, 128, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pad, btmStageY, stageW, btmStageH, 16);
+      } else {
+        ctx.rect(pad, btmStageY, stageW, btmStageH);
+      }
+      ctx.stroke();
+
+      // PORTRAIT HEADER BAR
+      ctx.fillStyle = '#080E18';
+      ctx.fillRect(0, 0, width, headerH);
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('SSB BRO — LIVE STUDIO', pad, 35);
+
+      const isBlink = Math.floor(secElapsed * 2) % 2 === 0;
+      ctx.fillStyle = isBlink ? '#EF4444' : '#7F1D1D';
+      ctx.beginPath();
+      ctx.arc(width - 110, 31, 5, 0, Math.PI * 2);
       ctx.fill();
 
+      const recDurStr = `${Math.floor(secElapsed / 60).toString().padStart(2, '0')}:${(Math.floor(secElapsed) % 60).toString().padStart(2, '0')}`;
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillText(`${mentor} (Host)`, stageX + 60, stageY + stageH - 52);
-      ctx.fillStyle = '#E6B980';
-      ctx.font = '12px sans-serif';
-      ctx.fillText('AIR 34 CDS 2 2019 • 3 AFSB Recommended', stageX + 60, stageY + stageH - 34);
-    }
-    ctx.restore();
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText(`REC ${recDurStr}`, width - 96, 36);
 
-    // 3. CANDIDATE PIP IN CORNER (Camera / Avatar)
-    const pipW = 240;
-    const pipH = 150;
-    const pipX = stageX + stageW - pipW - 16;
-    const pipY = stageY + stageH - pipH - 16;
-
-    ctx.save();
-    ctx.beginPath();
-    if (typeof (ctx as any).roundRect === 'function') {
-      (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
-    } else {
-      ctx.rect(pipX, pipY, pipW, pipH);
-    }
-    ctx.clip();
-
-    if (!isVideoOff && userVideoRef.current && userVideoRef.current.readyState >= 2) {
-      ctx.drawImage(userVideoRef.current, pipX, pipY, pipW, pipH);
-    } else {
-      ctx.fillStyle = '#161F2E';
-      ctx.fillRect(pipX, pipY, pipW, pipH);
+      // PORTRAIT FOOTER BAR
+      ctx.fillStyle = '#080E18';
+      ctx.fillRect(0, height - footerH, width, footerH);
       ctx.fillStyle = '#94A3B8';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('AS', pipX + pipW / 2, pipY + pipH / 2);
-      ctx.font = '11px sans-serif';
-      ctx.fillText('Camera Off', pipX + pipW / 2, pipY + pipH / 2 + 22);
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`Topic: ${topic}`, pad, height - 20);
+      ctx.fillStyle = '#64748B';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`ID: ${meetingCode}`, width - pad, height - 20);
       ctx.textAlign = 'left';
-    }
 
-    // Candidate Lower-Third Tag
-    ctx.fillStyle = 'rgba(0,0,0,0.75)';
-    ctx.fillRect(pipX, pipY + pipH - 26, pipW, 26);
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.fillText(`Chest 24 (${candidateName})`, pipX + 10, pipY + pipH - 9);
-
-    ctx.restore();
-
-    // Border around Candidate PIP
-    ctx.strokeStyle = 'rgba(230, 185, 128, 0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (typeof (ctx as any).roundRect === 'function') {
-      (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
     } else {
-      ctx.rect(pipX, pipY, pipW, pipH);
+      // ══════════════════════════════════════════════════════════════
+      // WIDESCREEN LANDSCAPE (1280×720) - DESKTOP / ROTATED LAYOUT
+      // ══════════════════════════════════════════════════════════════
+      const stageX = 16;
+      const stageY = 54;
+      const stageW = width - 32;
+      const stageH = height - 70;
+
+      ctx.save();
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(stageX, stageY, stageW, stageH, 16);
+      } else {
+        ctx.rect(stageX, stageY, stageW, stageH);
+      }
+      ctx.clip();
+
+      if (isSharingScreen && screenShareType === 'whiteboard' && whiteboardCanvasRef.current) {
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+        drawCover(ctx, whiteboardCanvasRef.current, stageX, stageY, stageW, stageH);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(stageX + 16, stageY + 16, 220, 32);
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText('Interactive Whiteboard', stageX + 26, stageY + 37);
+      } else if (isSharingScreen && screenShareType === 'tat') {
+        const slide = ssbTatSlides[tatSlideIndex];
+        if (tatSlideImageRef.current && tatSlideImageRef.current.complete && tatSlideImageRef.current.naturalWidth > 0) {
+          drawCover(ctx, tatSlideImageRef.current, stageX, stageY, stageW, stageH);
+        } else {
+          ctx.fillStyle = '#141E2E';
+          ctx.fillRect(stageX, stageY, stageW, stageH);
+        }
+
+        const grad = ctx.createLinearGradient(0, stageY, 0, stageY + stageH);
+        grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+        grad.addColorStop(0.3, 'rgba(0,0,0,0.15)');
+        grad.addColorStop(0.7, 'rgba(0,0,0,0.2)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText(slide.title, stageX + 24, stageY + 44);
+
+        const timerStr = `${tatPhase === 'observe' ? 'Observe' : 'Write'}: ${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s left`;
+        ctx.fillStyle = tatPhase === 'observe' ? '#EF4444' : '#10B981';
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText(timerStr, stageX + 24, stageY + 74);
+      } else if (isSharingScreen && screenShareType === 'wat') {
+        const word = ssbWatWords[watIndex] || 'LEADERSHIP';
+        ctx.fillStyle = '#0D1522';
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 68px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(word, width / 2, stageY + stageH / 2 - 20);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 22px monospace';
+        ctx.fillText(`Word ${watIndex + 1} of 60 • ${watTimeRemaining}s`, width / 2, stageY + stageH / 2 + 45);
+        ctx.textAlign = 'left';
+      } else if (isSharingScreen && screenShareType === 'srt') {
+        const srtObj = ssbSrtSituations[srtIndex];
+        ctx.fillStyle = '#0D1522';
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText(`Situation ${srtIndex + 1} of 15 • ${srtTimeRemaining}s left`, stageX + 50, stageY + 100);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '22px sans-serif';
+        const words = srtObj.text.split(' ');
+        let line = '';
+        let curY = stageY + 160;
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + ' ';
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > stageW - 100 && n > 0) {
+            ctx.fillText(line, stageX + 50, curY);
+            line = words[n] + ' ';
+            curY += 34;
+          } else {
+            line = testLine;
+          }
+        }
+        ctx.fillText(line, stageX + 50, curY);
+      } else if (isSharingScreen && screenStream && screenVideoRef.current && screenVideoRef.current.readyState >= 2) {
+        drawCover(ctx, screenVideoRef.current, stageX, stageY, stageW, stageH);
+      } else {
+        if (mentorImageRef.current && mentorImageRef.current.complete && mentorImageRef.current.naturalWidth > 0) {
+          drawCover(ctx, mentorImageRef.current, stageX, stageY, stageW, stageH);
+        } else {
+          ctx.fillStyle = '#141F30';
+          ctx.fillRect(stageX, stageY, stageW, stageH);
+          ctx.fillStyle = '#E6B980';
+          ctx.font = 'bold 36px sans-serif';
+          ctx.fillText(mentor, stageX + 60, stageY + stageH / 2);
+        }
+
+        const grad = ctx.createLinearGradient(0, stageY + stageH - 120, 0, stageY + stageH);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(stageX, stageY + stageH - 120, stageW, 120);
+
+        ctx.fillStyle = 'rgba(8, 14, 24, 0.9)';
+        ctx.fillRect(stageX + 24, stageY + stageH - 74, 380, 52);
+
+        ctx.fillStyle = '#10B981';
+        ctx.beginPath();
+        ctx.arc(stageX + 44, stageY + stageH - 48, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`${mentor} (Host)`, stageX + 60, stageY + stageH - 52);
+        ctx.fillStyle = '#E6B980';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('AIR 34 CDS 2 2019 • 3 AFSB Recommended', stageX + 60, stageY + stageH - 34);
+      }
+      ctx.restore();
+
+      // Candidate PIP in bottom-right corner
+      const pipW = 240;
+      const pipH = 150;
+      const pipX = stageX + stageW - pipW - 16;
+      const pipY = stageY + stageH - pipH - 16;
+
+      ctx.save();
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
+      } else {
+        ctx.rect(pipX, pipY, pipW, pipH);
+      }
+      ctx.clip();
+
+      if (!isVideoOff && userVideoRef.current && userVideoRef.current.readyState >= 2) {
+        drawCover(ctx, userVideoRef.current, pipX, pipY, pipW, pipH);
+      } else {
+        ctx.fillStyle = '#161F2E';
+        ctx.fillRect(pipX, pipY, pipW, pipH);
+        ctx.fillStyle = '#94A3B8';
+        ctx.font = 'bold 28px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('AS', pipX + pipW / 2, pipY + pipH / 2);
+        ctx.font = '11px sans-serif';
+        ctx.fillText('Camera Off', pipX + pipW / 2, pipY + pipH / 2 + 22);
+        ctx.textAlign = 'left';
+      }
+
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(pipX, pipY + pipH - 26, pipW, 26);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText(`Chest 24 (${candidateName})`, pipX + 10, pipY + pipH - 9);
+
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(230, 185, 128, 0.7)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === 'function') {
+        (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
+      } else {
+        ctx.rect(pipX, pipY, pipW, pipH);
+      }
+      ctx.stroke();
+
+      // Top Header Bar
+      ctx.fillStyle = 'rgba(8, 14, 24, 0.95)';
+      ctx.fillRect(0, 0, width, 50);
+
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('SSB BRO — LIVE MENTORSHIP STUDIO', 24, 31);
+
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`Topic: ${topic}`, 360, 31);
+
+      const isBlink = Math.floor(secElapsed * 2) % 2 === 0;
+      ctx.fillStyle = isBlink ? '#EF4444' : '#7F1D1D';
+      ctx.beginPath();
+      ctx.arc(width - 140, 27, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      const recDurStr = `${Math.floor(secElapsed / 60).toString().padStart(2, '0')}:${(Math.floor(secElapsed) % 60).toString().padStart(2, '0')}`;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText(`REC ${recDurStr}`, width - 126, 32);
     }
-    ctx.stroke();
-
-    // 4. TOP STUDIO HEADER BAR
-    ctx.fillStyle = 'rgba(8, 14, 24, 0.95)';
-    ctx.fillRect(0, 0, width, 50);
-
-    ctx.fillStyle = '#E6B980';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillText('SSB BRO — LIVE MENTORSHIP STUDIO', 24, 31);
-
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '13px sans-serif';
-    ctx.fillText(`Topic: ${topic}`, 360, 31);
-
-    // Blinking REC Indicator
-    const isBlink = Math.floor(secElapsed * 2) % 2 === 0;
-    ctx.fillStyle = isBlink ? '#EF4444' : '#7F1D1D';
-    ctx.beginPath();
-    ctx.arc(width - 140, 27, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    const recDurStr = `${Math.floor(secElapsed / 60).toString().padStart(2, '0')}:${(Math.floor(secElapsed) % 60).toString().padStart(2, '0')}`;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 13px monospace';
-    ctx.fillText(`REC ${recDurStr}`, width - 126, 32);
   };
 
   const toggleRecording = async () => {
@@ -1039,27 +1268,38 @@ export const ZoomMeetingPage: React.FC = () => {
       setDriveFileUrl(null);
 
       try {
-        // Initialize Studio Compositor Canvas 1280x720 (Captures Full Live Class)
+        // Auto-detect Orientation: Portrait for Mobile / Vertical, Landscape for Desktop / Horizontal
+        const isPortrait = recordingOrientation === 'portrait' || (recordingOrientation === 'auto' && window.innerWidth < window.innerHeight);
+        const targetW = isPortrait ? 720 : 1280;
+        const targetH = isPortrait ? 1280 : 720;
+
         let canvas = recordingCanvasRef.current;
         if (!canvas) {
           canvas = document.createElement('canvas');
-          canvas.width = 1280;
-          canvas.height = 720;
           recordingCanvasRef.current = canvas;
         }
+        canvas.width = targetW;
+        canvas.height = targetH;
         const ctx = canvas.getContext('2d');
 
-        // Continuous 30fps animation loop rendering the full live class
+        // Continuous 30fps animation loop with dynamic orientation tracking
         const startTime = Date.now();
         const renderLoop = () => {
-          if (!ctx) return;
+          if (!ctx || !canvas) return;
           const elapsedSec = (Date.now() - startTime) / 1000;
-          renderStudioFrame(ctx, 1280, 720, elapsedSec);
+          const curIsPortrait = recordingOrientation === 'portrait' || (recordingOrientation === 'auto' && window.innerWidth < window.innerHeight);
+          const curW = curIsPortrait ? 720 : 1280;
+          const curH = curIsPortrait ? 1280 : 720;
+          if (canvas.width !== curW || canvas.height !== curH) {
+            canvas.width = curW;
+            canvas.height = curH;
+          }
+          renderStudioFrame(ctx, curW, curH, elapsedSec);
           recordingLoopRef.current = requestAnimationFrame(renderLoop);
         };
         renderLoop();
 
-        // Capture continuous 30fps stream of the entire live class
+        // Capture continuous 30fps stream
         const compositeStream: MediaStream = (canvas as any).captureStream ? (canvas as any).captureStream(30) : null;
 
         // Merge Audio from user mic so voice is recorded into the live class video!
@@ -1120,13 +1360,15 @@ export const ZoomMeetingPage: React.FC = () => {
         calculatedSize = `${Math.max(1.5, +(totalSecs * 0.4)).toFixed(1)} MB`;
       }
 
+      const isCurrentPortrait = window.innerWidth < window.innerHeight;
       setSavedRecordSummary({
         duration,
         timestamp,
         seconds: totalSecs,
         fileSize: calculatedSize,
         fileName,
-        blobUrl: url
+        blobUrl: url,
+        orientation: isCurrentPortrait ? 'portrait' : 'landscape'
       });
       setIsSavedToDevice(false);
       setDriveUploadStatus('idle');
@@ -3270,6 +3512,26 @@ export const ZoomMeetingPage: React.FC = () => {
                 {isRecording && <span className="text-red-400 text-[10px] font-mono">REC ON</span>}
               </button>
 
+              {/* Smart Recording Orientation Selector */}
+              <div className="p-2.5 rounded-xl bg-[#1C1C1C] border border-white/5 flex items-center justify-between">
+                <span className="text-[11px] text-gray-400 font-medium">Auto-Rotate:</span>
+                <div className="flex items-center gap-1">
+                  {(['auto', 'portrait', 'landscape'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      onClick={() => setRecordingOrientation(mode)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${
+                        recordingOrientation === mode
+                          ? 'bg-brand-gold text-brand-dark'
+                          : 'bg-white/5 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {mode === 'auto' ? '📱 Auto' : mode === 'portrait' ? 'Vertical' : '16:9 Wide'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <button
                 onClick={() => {
                   setShowMobileMoreSheet(false);
@@ -3451,18 +3713,24 @@ export const ZoomMeetingPage: React.FC = () => {
                   {savedRecordSummary.fileName}
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 pt-1 border-t border-white/5 text-center">
+              <div className="grid grid-cols-4 gap-1.5 pt-1 border-t border-white/5 text-center">
                 <div className="p-1.5 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-gray-400 uppercase font-mono">Duration</p>
+                  <p className="text-[9px] text-gray-400 uppercase font-mono">Duration</p>
                   <p className="text-xs font-bold text-brand-gold">{savedRecordSummary.duration}</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-gray-400 uppercase font-mono">Est. Size</p>
+                  <p className="text-[9px] text-gray-400 uppercase font-mono">Est. Size</p>
                   <p className="text-xs font-bold text-emerald-400">{savedRecordSummary.fileSize}</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-gray-400 uppercase font-mono">Format</p>
-                  <p className="text-xs font-bold text-blue-400">WebM 1080p</p>
+                  <p className="text-[9px] text-gray-400 uppercase font-mono">Format</p>
+                  <p className="text-xs font-bold text-blue-400">WebM</p>
+                </div>
+                <div className="p-1.5 rounded-lg bg-white/[0.03]">
+                  <p className="text-[9px] text-gray-400 uppercase font-mono">Orientation</p>
+                  <p className="text-xs font-bold text-amber-400">
+                    {savedRecordSummary.orientation === 'portrait' ? 'Vertical 9:16' : '16:9 Wide'}
+                  </p>
                 </div>
               </div>
             </div>
