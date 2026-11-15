@@ -849,7 +849,7 @@ export const ZoomMeetingPage: React.FC = () => {
   const shareUrl = `${window.location.origin}/student/live-meeting?code=${meetingCode.replace(/\s+/g, '')}&passcode=${passcode}&topic=${encodeURIComponent(topic)}`;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#0E0E0E] text-white flex flex-col justify-between overflow-hidden select-none font-sans">
+    <div className="fixed inset-0 z-[100] bg-[#0E0E0E] text-white flex flex-col justify-between overflow-hidden font-sans">
       
       {/* Hidden file input for photo/document presentation */}
       <input
@@ -917,10 +917,10 @@ export const ZoomMeetingPage: React.FC = () => {
       </header>
 
       {/* ── 2. CENTRAL VIDEO STAGE + DRAWERS ── */}
-      <div className="flex-1 relative flex overflow-hidden">
+      <div className="flex-1 relative flex overflow-hidden w-full">
         
-        {/* Main Stage Viewport */}
-        <main className="flex-1 relative bg-black flex items-center justify-center p-1 sm:p-3 overflow-hidden">
+        {/* Main Stage Viewport (Fluid Touch-Scroll on Mobile) */}
+        <main className="flex-1 relative bg-black flex flex-col sm:items-center sm:justify-center p-1 sm:p-3 overflow-y-auto overscroll-contain touch-scroll">
           
           {/* Smooth Floating Reaction Particles */}
           <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
@@ -937,10 +937,10 @@ export const ZoomMeetingPage: React.FC = () => {
 
           {/* SCENARIO A: ACTIVE SCREEN / CONTENT SHARE */}
           {isSharingScreen ? (
-            <div className="relative w-full h-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#0A0A0A] border border-[#222] shadow-2xl flex flex-col">
+            <div className="relative w-full min-h-full sm:h-full rounded-xl sm:rounded-2xl bg-[#0A0A0A] border border-[#222] shadow-2xl flex flex-col overflow-y-auto sm:overflow-hidden touch-scroll">
               
-              {/* Share Top Bar */}
-              <div className="h-8 sm:h-9 px-3 bg-[#181818] border-b border-[#252525] flex items-center justify-between text-xs text-emerald-400 shrink-0 z-10">
+              {/* Share Top Bar (Sticky on mobile scroll) */}
+              <div className="h-8 sm:h-9 px-3 bg-[#181818] border-b border-[#252525] flex items-center justify-between text-xs text-emerald-400 shrink-0 z-20 sticky top-0">
                 <div className="flex items-center gap-1.5 font-medium truncate">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   <span className="truncate">
@@ -948,8 +948,10 @@ export const ZoomMeetingPage: React.FC = () => {
                     {screenShareType === 'camera' && 'Live Document & Desk Camera Presenter'}
                     {screenShareType === 'whiteboard' && 'Interactive Tactical Whiteboard Canvas'}
                     {screenShareType === 'photo' && 'Candidate Document & Story Presentation'}
-                    {screenShareType === 'tat' && 'TAT Psychological Slide Deck'}
-                    {screenShareType === 'wat' && 'WAT 15s Rapid Word Battery'}
+                    {screenShareType === 'tat' && 'TAT Psychological Slide Deck (12 Slides)'}
+                    {screenShareType === 'wat' && 'WAT Word Association (60 Words)'}
+                    {screenShareType === 'srt' && 'SRT Situation Reaction (15 Scenarios)'}
+                    {screenShareType === 'sdt' && 'SDT Self Description (5 Pillars)'}
                     {screenShareType === 'piq' && 'PIQ Candidate Dossier Form'}
                   </span>
                 </div>
@@ -961,8 +963,8 @@ export const ZoomMeetingPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Share Content Viewport */}
-              <div className="flex-1 relative bg-black flex items-center justify-center p-1 overflow-hidden">
+              {/* Share Content Viewport (Fluid Touch-Scroll) */}
+              <div className="flex-1 relative bg-black flex flex-col items-center justify-start sm:justify-center p-1 sm:p-3 overflow-y-auto overscroll-contain touch-scroll w-full">
                 
                 {/* 1. Native Display Media Stream or Live Document Camera */}
                 {(screenShareType === 'native' || screenShareType === 'camera') && (
@@ -1042,7 +1044,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                 {/* 4. REAL INTERACTIVE TAT SIMULATION (12 SLIDES WITH CHANGEABLE TIMERS) */}
                 {screenShareType === 'tat' && (
-                  <div className="w-full max-w-4xl h-full flex flex-col justify-between p-2 sm:p-4 text-center select-none overflow-y-auto">
+                  <div className="w-full max-w-4xl min-h-full flex flex-col justify-start p-2 sm:p-4 text-center overflow-y-auto overscroll-contain touch-scroll space-y-3 pb-16 sm:pb-4">
                     
                     {/* Top Controls Bar */}
                     <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
@@ -1260,7 +1262,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                 {/* 5. REAL INTERACTIVE WAT SIMULATION (60 WORDS WITH CHANGEABLE TIMERS) */}
                 {screenShareType === 'wat' && (
-                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                  <div className="w-full max-w-2xl min-h-full flex flex-col justify-start p-3 sm:p-5 text-center overflow-y-auto overscroll-contain touch-scroll space-y-4 pb-16 sm:pb-4">
                     
                     {/* Top Control Bar */}
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
@@ -1414,7 +1416,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                 {/* 6. REAL INTERACTIVE SRT SIMULATION (15 SITUATIONS WITH CHANGEABLE TIMERS) */}
                 {screenShareType === 'srt' && (
-                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                  <div className="w-full max-w-2xl min-h-full flex flex-col justify-start p-3 sm:p-5 text-center overflow-y-auto overscroll-contain touch-scroll space-y-4 pb-16 sm:pb-4">
                     {/* Top Control Bar */}
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
                       <div className="flex items-center gap-2">
@@ -1549,7 +1551,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                 {/* 7. REAL INTERACTIVE SDT SIMULATION (5 PILLARS) */}
                 {screenShareType === 'sdt' && (
-                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                  <div className="w-full max-w-2xl min-h-full flex flex-col justify-start p-3 sm:p-5 text-center overflow-y-auto overscroll-contain touch-scroll space-y-4 pb-16 sm:pb-4">
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
                       <span className="font-bold text-brand-gold font-mono">
                         Pillar {sdtSection + 1}/5: {ssbSdtPillars[sdtSection].title}
@@ -1818,7 +1820,7 @@ export const ZoomMeetingPage: React.FC = () => {
             {/* TAB: CHAT */}
             {activeDrawer === 'chat' && (
               <div className="flex-1 flex flex-col justify-between overflow-hidden">
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-xs">
+                <div className="flex-1 overflow-y-auto overscroll-contain touch-scroll p-3 sm:p-4 space-y-3 text-xs">
                   {chatMessages.map((m, i) => (
                     <div key={i} className={`p-2.5 rounded-xl border ${m.isMe ? 'bg-[#222] border-[#303030] ml-4' : 'bg-[#181818] border-[#252525] mr-4'}`}>
                       <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
@@ -1846,7 +1848,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
             {/* TAB: PARTICIPANTS */}
             {activeDrawer === 'participants' && (
-              <div className="flex-1 overflow-y-auto p-4 space-y-2.5 text-xs">
+              <div className="flex-1 overflow-y-auto overscroll-contain touch-scroll p-4 space-y-2.5 text-xs pb-24 sm:pb-6">
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#1E1E1E] border border-white/5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-brand-gold text-brand-dark font-bold flex items-center justify-center text-xs">
@@ -1958,7 +1960,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-xs">
+                <div className="flex-1 overflow-y-auto overscroll-contain touch-scroll p-3 sm:p-4 space-y-3 text-xs pb-24 sm:pb-6">
                   
                   {/* ── TAB 1: TAT DRILL (12 SLIDES WITH CHANGEABLE TIMINGS) ── */}
                   {drillTab === 'tat' && (
@@ -2466,7 +2468,7 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setShowShareOptionsModal(false)}
         >
           <div
-            className="bg-[#1A1A1A] border border-[#2E2E2E] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative"
+            className="bg-[#1A1A1A] border border-[#2E2E2E] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative max-h-[85vh] overflow-y-auto overscroll-contain touch-scroll"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
@@ -2629,7 +2631,7 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setShowMobileScreenNoticeModal(false)}
         >
           <div
-            className="bg-[#1A1A1A] border border-[#303030] max-w-sm w-full rounded-2xl p-5 space-y-4 shadow-2xl relative"
+            className="bg-[#1A1A1A] border border-[#303030] max-w-sm w-full rounded-2xl p-5 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto overscroll-contain touch-scroll"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
@@ -2705,7 +2707,7 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setShowMobileMoreSheet(false)}
         >
           <div
-            className="bg-[#1A1A1A] border-t border-[#2C2C2C] w-full rounded-t-3xl p-5 space-y-4 shadow-2xl relative max-h-[80vh] overflow-y-auto"
+            className="bg-[#1A1A1A] border-t border-[#2C2C2C] w-full rounded-t-3xl p-5 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto overscroll-contain touch-scroll pb-10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-1" />
