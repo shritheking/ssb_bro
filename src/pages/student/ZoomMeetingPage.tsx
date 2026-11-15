@@ -8,10 +8,150 @@ import {
   Play, Copy, Link as LinkIcon, Download, Clock, 
   FileText, Sparkles, ExternalLink, HelpCircle,
   MoreHorizontal, PhoneOff, AlertCircle, Camera, 
-  Target, Award, Radio, PenTool, Image, Trash2
+  Target, Award, Radio, PenTool, Image, Trash2,
+  RotateCcw, Volume2, VolumeX, Sliders, ChevronLeft, ChevronRight, CheckCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { saveSessionRecording } from '../../lib/supabase';
+
+// ──────────────────────────────────────────────────────────
+// SSB PSYCHOLOGY TESTING SIMULATOR DATASETS
+// ──────────────────────────────────────────────────────────
+export interface TatSlide {
+  id: number;
+  title: string;
+  context: string;
+  imageUrl: string;
+  sampleOlqs: string[];
+}
+
+export const ssbTatSlides: TatSlide[] = [
+  {
+    id: 1,
+    title: "Slide 1: Rural Rescue & First Aid",
+    context: "Group gathered around an injured villager near a broken road in heavy rains.",
+    imageUrl: "https://images.unsplash.com/photo-1541872703-74c5e44368f9?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Initiative", "Effective Intelligence", "Sense of Responsibility"]
+  },
+  {
+    id: 2,
+    title: "Slide 2: Late Night Examination / Research",
+    context: "Young person at a study desk with open books under a desk lamp while others rest.",
+    imageUrl: "https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Determination", "Stamina", "Self Confidence"]
+  },
+  {
+    id: 3,
+    title: "Slide 3: Tactical Planning in Camp",
+    context: "Two youths examining an open topographical map with flashlights in a tent.",
+    imageUrl: "https://images.unsplash.com/photo-1579208575657-c595a053b977?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Reasoning Ability", "Organizing Ability", "Cooperation"]
+  },
+  {
+    id: 4,
+    title: "Slide 4: Factory / Machine Crisis",
+    context: "An engineer in protective gear observing abnormal pressure reading on a pipeline.",
+    imageUrl: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Speed of Decision", "Courage", "Liveliness"]
+  },
+  {
+    id: 5,
+    title: "Slide 5: Mountain Ascent & Team Support",
+    context: "A leader reaching back on a steep rock face extending a hand to an exhausted teammate.",
+    imageUrl: "https://images.unsplash.com/photo-1533227268428-f9ed0900fb3b?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Ability to Influence Group", "Social Adaptability", "Courage"]
+  },
+  {
+    id: 6,
+    title: "Slide 6: Village Reconstruction & Panchayat",
+    context: "A young person presenting a water canal blueprint to village elders in a council.",
+    imageUrl: "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Initiative", "Power of Expression", "Group Influence"]
+  },
+  {
+    id: 7,
+    title: "Slide 7: Inter-College Tournament Halftime",
+    context: "Sports team gathered in a circle behind on points, captain giving decisive instructions.",
+    imageUrl: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Leadership", "Liveliness", "Determination"]
+  },
+  {
+    id: 8,
+    title: "Slide 8: Rural Medical Relief Camp",
+    context: "Doctor and volunteer administering vaccine doses during an epidemic outbreak.",
+    imageUrl: "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Sense of Responsibility", "Social Adaptability", "Compassion"]
+  },
+  {
+    id: 9,
+    title: "Slide 9: Technical Prototype Testing",
+    context: "Two college students working on an autonomous drone project before competition deadline.",
+    imageUrl: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Effective Intelligence", "Organizing Ability", "Persistence"]
+  },
+  {
+    id: 10,
+    title: "Slide 10: Highway Breakdown at Dusk",
+    context: "Two individuals inspecting a stalled bus engine with stranded passengers looking on.",
+    imageUrl: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Speed of Decision", "Practical Intelligence", "Responsibility"]
+  },
+  {
+    id: 11,
+    title: "Slide 11: Youth Innovation Meeting",
+    context: "A team around a conference table engaged in an animated debate on disaster relief.",
+    imageUrl: "https://images.unsplash.com/photo-1519389950473-47ba0277781c?auto=format&fit=crop&w=1200&q=80",
+    sampleOlqs: ["Cooperation", "Power of Expression", "Group Cohesion"]
+  },
+  {
+    id: 12,
+    title: "Slide 12: OFFICIAL SSB BLANK SLIDE",
+    context: "Authentic blank slide. Conceive your own positive hero, realistic crisis, action, and triumph.",
+    imageUrl: "",
+    sampleOlqs: ["Self Concept", "Natural Spontaneity", "High Officer Potential"]
+  }
+];
+
+export const ssbWatWords = [
+  "LEADERSHIP", "OBSTACLE", "COURAGE", "INITIATIVE", "INTEGRITY",
+  "SACRIFICE", "RESPONSIBILITY", "TEAM", "ATTEMPT", "DISCIPLINE",
+  "FEAR", "PEACE", "DETERMINATION", "DUTY", "ALERT",
+  "CHALLENGE", "SUCCESS", "FAILURE", "ORDER", "VICTORY",
+  "ENEMY", "FRIEND", "CONFIDENCE", "RESOLVE", "COOPERATION",
+  "HONOUR", "WAR", "SPEED", "DIFFICULTY", "CALM",
+  "WORK", "COUNTRY", "DECISION", "STAMINA", "REASON",
+  "HELP", "RISK", "BLOOD", "SMILE", "WEAPON",
+  "PATRIOT", "FUTURE", "PLAN", "ATTACK", "DEFEAT",
+  "ACTION", "PROGRESS", "TRUTH", "TIME", "STRENGTH",
+  "HOPE", "CRISIS", "COMPASSION", "ENERGY", "LOYALTY",
+  "PRESSURE", "RULE", "MISSION", "ACHIEVE", "CHARACTER"
+];
+
+export const ssbSrtSituations = [
+  { id: 1, text: "He was traveling in a sleeper train at night when a fire broke out in the adjacent bogie and panic ensued. He..." },
+  { id: 2, text: "While trekking in a remote forest, his buddy slipped into a 20-foot gorge and fractured his leg with a storm approaching. He..." },
+  { id: 3, text: "His sister's wedding was in two days, but his unit was urgently mobilized for active border deployment. He..." },
+  { id: 4, text: "During the Command Task, the bridging plank broke midway and his subordinate froze in fear. He..." },
+  { id: 5, text: "In a crowded market, he noticed an unattended bag emitting a ticking sound near an electrical transformer. He..." },
+  { id: 6, text: "During flood relief, the rescue motorboat engine failed in high current with 8 villagers on board. He..." },
+  { id: 7, text: "He was preparing for his final SSB attempt when his wallet with all original certificates was stolen 5 days before reporting. He..." },
+  { id: 8, text: "On a deserted highway at night, he witnessed an overturned jeep with fuel leaking and passengers trapped inside. He..." },
+  { id: 9, text: "During a crucial inter-college football final, the captain was injured in the first 10 minutes and team morale collapsed. He..." },
+  { id: 10, text: "In a group discussion, two candidates became aggressive and turned it into a shouting match. He..." },
+  { id: 11, text: "His village was cut off due to a sudden cloudburst and the local primary health center ran out of life-saving oxygen. He..." },
+  { id: 12, text: "He was walking along a railway track when he spotted a large fishplate missing with a train whistle approaching in the distance. He..." },
+  { id: 13, text: "While conducting an obstacle run, an opponent deliberately pushed his teammate to gain an unfair advantage. He..." },
+  { id: 14, text: "His parents wanted him to take a high-paying corporate desk job, but his dream was the Indian Military Academy. He..." },
+  { id: 15, text: "In an SSB interview, the Board President questioned the integrity of his academic records based on a typo. He..." }
+];
+
+export const ssbSdtPillars = [
+  { id: 1, title: "1. Parents' Opinion", question: "What do your parents think of you? (Responsibilities, temperament, trust, obedience)" },
+  { id: 2, title: "2. Teachers' & Mentors' Opinion", question: "What do your teachers or professors think of you? (Academics, discipline, punctuality, extra-curriculars)" },
+  { id: 3, title: "3. Friends' & Peers' Opinion", question: "What do your close friends think of you? (Reliability in crisis, camaraderie, helpfulness, loyalty)" },
+  { id: 4, title: "4. Self Assessment", question: "What kind of person do you consider yourself to be? (Your core strengths and 2 genuine areas of self-improvement)" },
+  { id: 5, title: "5. Aim in Life & Future Persona", question: "What kind of person and officer do you wish to develop into? (Values, career goals, personal standards)" }
+];
 
 interface FloatingReaction {
   id: number;
@@ -55,7 +195,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
   // Screen Share & Presentation States
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  const [screenShareType, setScreenShareType] = useState<'native' | 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq' | 'camera'>('native');
+  const [screenShareType, setScreenShareType] = useState<'native' | 'whiteboard' | 'photo' | 'tat' | 'wat' | 'srt' | 'sdt' | 'piq' | 'camera'>('native');
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
@@ -85,15 +225,45 @@ export const ZoomMeetingPage: React.FC = () => {
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const reactionCounterRef = useRef(0);
 
-  // Drills States
-  const [drillTab, setDrillTab] = useState<'tat' | 'wat' | 'piq'>('tat');
-  const [tatCountdown, setTatCountdown] = useState(30);
-  const [candidateStory, setCandidateStory] = useState('');
-  const [watIndex, setWatIndex] = useState(0);
-  const [watTimer, setWatTimer] = useState(15);
-  const [watInput, setWatInput] = useState('');
+  // ──────────────────────────────────────────────────────────
+  // SSB SIMULATION ENGINE STATES (WITH CHANGEABLE TIMERS)
+  // ──────────────────────────────────────────────────────────
+  const [drillTab, setDrillTab] = useState<'tat' | 'wat' | 'srt' | 'sdt' | 'piq'>('tat');
+  const [simIsRunning, setSimIsRunning] = useState(true);
+  const [simSoundEnabled, setSimSoundEnabled] = useState(true);
 
-  const watWords = ['LEADERSHIP', 'OBSTACLE', 'COURAGE', 'INITIATIVE', 'INTEGRITY', 'SACRIFICE', 'RESPONSIBILITY'];
+  // 1. TAT State (12 Real Slides: 30s Observe + 4m Write)
+  const [tatSlideIndex, setTatSlideIndex] = useState(0); // 0 to 11
+  const [tatPhase, setTatPhase] = useState<'observe' | 'write'>('observe');
+  const [tatObserveDuration, setTatObserveDuration] = useState(30); // 15, 30, 45, 60
+  const [tatWriteDuration, setTatWriteDuration] = useState(240); // 60, 120, 180, 240
+  const [tatTimeRemaining, setTatTimeRemaining] = useState(30);
+  const [tatStories, setTatStories] = useState<Record<number, string>>({});
+  const [tatCurrentStory, setTatCurrentStory] = useState('');
+  const [showTatSettings, setShowTatSettings] = useState(false);
+
+  // 2. WAT State (60 Real SSB Words: 15s Per Word)
+  const [watIndex, setWatIndex] = useState(0); // 0 to 59
+  const [watDuration, setWatDuration] = useState(15); // 10, 12, 15, 20
+  const [watTimeRemaining, setWatTimeRemaining] = useState(15);
+  const [watResponses, setWatResponses] = useState<Record<number, string>>({});
+  const [watCurrentInput, setWatCurrentInput] = useState('');
+  const [showWatSettings, setShowWatSettings] = useState(false);
+
+  // 3. SRT State (15 Real SSB Crisis Scenarios: 30s Per Situation)
+  const [srtIndex, setSrtIndex] = useState(0); // 0 to 14
+  const [srtDuration, setSrtDuration] = useState(30); // 20, 30, 45, 60
+  const [srtTimeRemaining, setSrtTimeRemaining] = useState(30);
+  const [srtResponses, setSrtResponses] = useState<Record<number, string>>({});
+  const [srtCurrentInput, setSrtCurrentInput] = useState('');
+  const [showSrtSettings, setShowSrtSettings] = useState(false);
+
+  // 4. SDT State (5 Official Pillars: 15 Minutes Total)
+  const [sdtSection, setSdtSection] = useState(0); // 0 to 4
+  const [sdtDuration, setSdtDuration] = useState(900); // 900s = 15m
+  const [sdtTimeRemaining, setSdtTimeRemaining] = useState(900);
+  const [sdtResponses, setSdtResponses] = useState<Record<number, string>>({});
+  const [showSdtSettings, setShowSdtSettings] = useState(false);
 
   // Chat
   const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string; isMe: boolean; tag?: string }>>([
@@ -327,7 +497,102 @@ export const ZoomMeetingPage: React.FC = () => {
     }
   };
 
-  const startPresentation = (type: 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq') => {
+  const playAudioCue = (type: 'bell' | 'tick') => {
+    if (!simSoundEnabled) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      if (type === 'bell') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.45);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.45);
+      } else {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1000, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.08);
+      }
+    } catch {}
+  };
+
+  // Active Timer for SSB Simulations (TAT, WAT, SRT, SDT)
+  useEffect(() => {
+    if (!simIsRunning) return;
+
+    const interval = setInterval(() => {
+      // 1. TAT Timer (active on stage or in drawer)
+      if (screenShareType === 'tat' || (activeDrawer === 'drills' && drillTab === 'tat')) {
+        setTatTimeRemaining(prev => {
+          if (prev <= 1) {
+            playAudioCue('bell');
+            if (tatPhase === 'observe') {
+              setTatPhase('write');
+              return tatWriteDuration;
+            } else {
+              setTatPhase('observe');
+              setTatSlideIndex(curr => (curr + 1) % 12);
+              return tatObserveDuration;
+            }
+          }
+          if (prev <= 4 && prev > 1 && tatPhase === 'observe') {
+            playAudioCue('tick');
+          }
+          return prev - 1;
+        });
+      }
+
+      // 2. WAT Timer (active on stage or in drawer)
+      if (screenShareType === 'wat' || (activeDrawer === 'drills' && drillTab === 'wat')) {
+        setWatTimeRemaining(prev => {
+          if (prev <= 1) {
+            playAudioCue('bell');
+            setWatIndex(curr => (curr + 1) % ssbWatWords.length);
+            return watDuration;
+          }
+          if (prev <= 4 && prev > 1) {
+            playAudioCue('tick');
+          }
+          return prev - 1;
+        });
+      }
+
+      // 3. SRT Timer (active on stage or in drawer)
+      if (screenShareType === 'srt' || (activeDrawer === 'drills' && drillTab === 'srt')) {
+        setSrtTimeRemaining(prev => {
+          if (prev <= 1) {
+            playAudioCue('bell');
+            setSrtIndex(curr => (curr + 1) % ssbSrtSituations.length);
+            return srtDuration;
+          }
+          if (prev <= 4 && prev > 1) {
+            playAudioCue('tick');
+          }
+          return prev - 1;
+        });
+      }
+
+      // 4. SDT Timer
+      if (screenShareType === 'sdt' || (activeDrawer === 'drills' && drillTab === 'sdt')) {
+        setSdtTimeRemaining(prev => Math.max(0, prev - 1));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [simIsRunning, screenShareType, activeDrawer, drillTab, tatPhase, tatObserveDuration, tatWriteDuration, watDuration, srtDuration, simSoundEnabled]);
+
+  const startPresentation = (type: 'whiteboard' | 'photo' | 'tat' | 'wat' | 'srt' | 'sdt' | 'piq') => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
     setShowMobileScreenNoticeModal(false);
@@ -337,6 +602,7 @@ export const ZoomMeetingPage: React.FC = () => {
     }
     setScreenShareType(type);
     setIsSharingScreen(true);
+    setSimIsRunning(true);
   };
 
   const stopScreenShare = () => {
@@ -774,34 +1040,558 @@ export const ZoomMeetingPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* 4. TAT Deck */}
+                {/* 4. REAL INTERACTIVE TAT SIMULATION (12 SLIDES WITH CHANGEABLE TIMERS) */}
                 {screenShareType === 'tat' && (
-                  <div className="w-full max-w-2xl h-full flex flex-col items-center justify-center text-center p-3">
-                    <span className="text-[10px] font-mono text-brand-gold uppercase tracking-widest font-semibold mb-1">
-                      Observation Phase (30s)
-                    </span>
-                    <div className="relative w-full aspect-[4/3] max-h-[60vh] rounded-xl overflow-hidden border border-white/20 bg-neutral-900 shadow-xl">
-                      <img
-                        src="/images/hero-defence.jpg"
-                        alt="TAT Psychological Stimulus"
-                        className="w-full h-full object-cover filter contrast-125 brightness-90 grayscale"
-                      />
+                  <div className="w-full max-w-4xl h-full flex flex-col justify-between p-2 sm:p-4 text-center select-none overflow-y-auto">
+                    
+                    {/* Top Controls Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-brand-gold font-mono text-sm">
+                          Slide {tatSlideIndex + 1}/12
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+                          tatPhase === 'observe' 
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse' 
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        }`}>
+                          {tatPhase === 'observe' ? `Observation (${tatTimeRemaining}s)` : `Writing (${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s)`}
+                        </span>
+                      </div>
+
+                      {/* Simulation Actions */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setSimIsRunning(!simIsRunning)}
+                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                        >
+                          {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setTatTimeRemaining(tatPhase === 'observe' ? tatObserveDuration : tatWriteDuration);
+                            setSimIsRunning(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-300 border border-white/10"
+                          title="Restart Slide Timer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => setSimSoundEnabled(!simSoundEnabled)}
+                          className={`p-1.5 rounded-lg border ${simSoundEnabled ? 'bg-brand-gold/20 text-brand-gold border-brand-gold/40' : 'bg-[#252525] text-gray-400 border-white/10'}`}
+                          title="Buzzer Sound Chime"
+                        >
+                          {simSoundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                        </button>
+
+                        <button
+                          onClick={() => setShowTatSettings(!showTatSettings)}
+                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1 shadow"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>Change Time</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Changeable Timing Dropdown/Settings Drawer */}
+                    {showTatSettings && (
+                      <div className="p-3 my-2 rounded-xl bg-[#202020] border border-brand-gold/50 text-left text-xs space-y-2.5 animate-fadeIn">
+                        <div className="flex items-center justify-between font-bold text-brand-gold">
+                          <span>SSB Psychological Timing Settings</span>
+                          <button onClick={() => setShowTatSettings(false)} className="text-gray-400 hover:text-white">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-gray-300 font-medium block mb-1">Observation Time (Per Picture):</label>
+                            <div className="flex gap-1.5">
+                              {[15, 30, 45, 60].map(sec => (
+                                <button
+                                  key={sec}
+                                  onClick={() => {
+                                    setTatObserveDuration(sec);
+                                    if (tatPhase === 'observe') setTatTimeRemaining(sec);
+                                  }}
+                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-mono font-semibold transition-colors ${
+                                    tatObserveDuration === sec 
+                                      ? 'bg-brand-gold text-brand-dark' 
+                                      : 'bg-[#2A2A2A] text-gray-300 hover:text-white'
+                                  }`}
+                                >
+                                  {sec}s {sec === 30 && '(SSB)'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-gray-300 font-medium block mb-1">Story Formulation Time:</label>
+                            <div className="flex gap-1.5">
+                              {[60, 120, 180, 240].map(sec => (
+                                <button
+                                  key={sec}
+                                  onClick={() => {
+                                    setTatWriteDuration(sec);
+                                    if (tatPhase === 'write') setTatTimeRemaining(sec);
+                                  }}
+                                  className={`flex-1 py-1 px-2 rounded-lg text-xs font-mono font-semibold transition-colors ${
+                                    tatWriteDuration === sec 
+                                      ? 'bg-brand-gold text-brand-dark' 
+                                      : 'bg-[#2A2A2A] text-gray-300 hover:text-white'
+                                  }`}
+                                >
+                                  {sec / 60}m {sec === 240 && '(SSB)'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Stage Presentation Viewport */}
+                    <div className="flex-1 my-2 flex items-center justify-center relative min-h-[40vh] max-h-[55vh]">
+                      {tatSlideIndex === 11 ? (
+                        /* Slide 12: Blank Canvas */
+                        <div className="w-full h-full max-w-2xl aspect-[4/3] rounded-2xl bg-[#090909] border-2 border-dashed border-brand-gold/40 flex flex-col items-center justify-center p-6 text-center shadow-2xl">
+                          <span className="text-3xl font-black font-mono text-brand-gold mb-2">OFFICIAL SSB BLANK SLIDE</span>
+                          <p className="text-xs text-gray-400 max-w-md leading-relaxed">
+                            Conceive your own active protagonist, realistic crisis/situation, practical action taken, and positive outcome.
+                          </p>
+                          <span className="mt-4 px-3 py-1 rounded-full bg-brand-gold/10 text-brand-gold font-mono text-[10px]">
+                            Slide 12 of 12 · Self-Actualization Test
+                          </span>
+                        </div>
+                      ) : (
+                        /* Slides 1 to 11 */
+                        <div className="relative w-full h-full max-w-2xl aspect-[4/3] rounded-2xl overflow-hidden border border-white/20 bg-black shadow-2xl">
+                          <img
+                            src={ssbTatSlides[tatSlideIndex].imageUrl}
+                            alt={ssbTatSlides[tatSlideIndex].title}
+                            className={`w-full h-full object-cover filter contrast-125 brightness-95 grayscale transition-transform duration-700 ${
+                              tatPhase === 'observe' ? 'scale-105' : 'scale-100 opacity-70'
+                            }`}
+                          />
+
+                          {/* Phase Overlay */}
+                          {tatPhase === 'write' && (
+                            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm p-4 flex flex-col justify-center items-center text-center">
+                              <span className="text-brand-gold font-mono text-xs uppercase font-bold tracking-widest mb-1">
+                                Story Formulation Phase
+                              </span>
+                              <h3 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                                Write Your Psychological Story
+                              </h3>
+                              <div className="bg-[#181818]/90 p-3 rounded-xl border border-white/10 text-left text-xs max-w-md space-y-1.5 font-mono text-gray-300">
+                                <p><strong className="text-brand-gold">1. Hero:</strong> Age, Gender, Mood (P/N/N)</p>
+                                <p><strong className="text-brand-gold">2. Past:</strong> What led up to the situation?</p>
+                                <p><strong className="text-brand-gold">3. Present:</strong> What is happening right now?</p>
+                                <p><strong className="text-brand-gold">4. Future:</strong> Logical positive resolution?</p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Live Observation Timer Watermark */}
+                          <div className="absolute bottom-2 right-2 bg-black/80 px-2.5 py-1 rounded-lg text-xs font-mono font-bold text-brand-gold border border-white/10 flex items-center gap-1.5 shadow-xl">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{tatTimeRemaining}s</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bottom Slide Navigation Bar */}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <button
+                          onClick={() => {
+                            setTatSlideIndex(prev => (prev === 0 ? 11 : prev - 1));
+                            setTatPhase('observe');
+                            setTatTimeRemaining(tatObserveDuration);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-[#202020] hover:bg-[#2C2C2C] text-gray-200 flex items-center gap-1 font-semibold border border-white/10"
+                        >
+                          <ChevronLeft className="w-4 h-4" /> Previous Slide
+                        </button>
+
+                        {/* Slide Selector Pills (1 to 12) */}
+                        <div className="hidden sm:flex items-center gap-1">
+                          {ssbTatSlides.map((slide, idx) => (
+                            <button
+                              key={slide.id}
+                              onClick={() => {
+                                setTatSlideIndex(idx);
+                                setTatPhase('observe');
+                                setTatTimeRemaining(tatObserveDuration);
+                              }}
+                              className={`w-7 h-7 rounded-lg text-[10px] font-mono font-bold transition-all ${
+                                tatSlideIndex === idx
+                                  ? 'bg-brand-gold text-brand-dark scale-110 shadow-lg'
+                                  : 'bg-[#202020] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              {idx + 1}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setTatSlideIndex(prev => (prev === 11 ? 0 : prev + 1));
+                            setTatPhase('observe');
+                            setTatTimeRemaining(tatObserveDuration);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-brand-gold text-brand-dark flex items-center gap-1 font-bold shadow"
+                        >
+                          Next Slide <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+
+                {/* 5. REAL INTERACTIVE WAT SIMULATION (60 WORDS WITH CHANGEABLE TIMERS) */}
+                {screenShareType === 'wat' && (
+                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                    
+                    {/* Top Control Bar */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-brand-gold font-mono text-sm">
+                          Word {watIndex + 1}/60
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[10px]">
+                          15s Rapid OLQ Flash
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setSimIsRunning(!simIsRunning)}
+                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                        >
+                          {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setWatTimeRemaining(watDuration);
+                            setSimIsRunning(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-300 border border-white/10"
+                          title="Restart Word Timer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => setSimSoundEnabled(!simSoundEnabled)}
+                          className={`p-1.5 rounded-lg border ${simSoundEnabled ? 'bg-brand-gold/20 text-brand-gold border-brand-gold/40' : 'bg-[#252525] text-gray-400 border-white/10'}`}
+                        >
+                          {simSoundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+                        </button>
+
+                        <button
+                          onClick={() => setShowWatSettings(!showWatSettings)}
+                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1 shadow"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>Timer</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Change Timing Bar */}
+                    {showWatSettings && (
+                      <div className="p-3 my-2 rounded-xl bg-[#202020] border border-brand-gold/50 text-left text-xs space-y-2 animate-fadeIn">
+                        <div className="flex items-center justify-between font-bold text-brand-gold">
+                          <span>Change Word Flash Duration</span>
+                          <button onClick={() => setShowWatSettings(false)} className="text-gray-400 hover:text-white">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          {[10, 12, 15, 20].map(sec => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setWatDuration(sec);
+                                setWatTimeRemaining(sec);
+                              }}
+                              className={`flex-1 py-1.5 rounded-xl font-mono text-xs font-semibold ${
+                                watDuration === sec 
+                                  ? 'bg-brand-gold text-brand-dark' 
+                                  : 'bg-[#2A2A2A] text-gray-300 hover:text-white'
+                              }`}
+                            >
+                              {sec}s {sec === 15 ? '(SSB Standard)' : sec === 10 ? '(Rapid)' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Central Word Stimulus Card */}
+                    <div className="my-auto py-8 sm:py-12 px-6 rounded-3xl bg-[#141414] border-2 border-brand-gold/40 flex flex-col items-center justify-center space-y-5 shadow-2xl relative">
+                      
+                      {/* Circular Timer Ring Indicator */}
+                      <div className="relative w-20 h-20 flex items-center justify-center">
+                        <div className="text-3xl font-black font-mono text-brand-gold">
+                          {watTimeRemaining}s
+                        </div>
+                      </div>
+
+                      {/* Display Word */}
+                      <h2 className="text-4xl sm:text-6xl font-black font-mono text-brand-gold tracking-widest drop-shadow-md">
+                        {ssbWatWords[watIndex]}
+                      </h2>
+
+                      <p className="text-xs text-gray-400 font-mono max-w-sm">
+                        Formulate an active, original, character-driven sentence demonstrating Officer Like Qualities.
+                      </p>
+
+                      {/* Fast Sentence Input on Stage */}
+                      <div className="w-full max-w-md pt-2">
+                        <input
+                          value={watCurrentInput}
+                          onChange={(e) => setWatCurrentInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && watCurrentInput.trim()) {
+                              setWatResponses(prev => ({ ...prev, [watIndex]: watCurrentInput.trim() }));
+                              setWatCurrentInput('');
+                              setWatIndex(curr => (curr + 1) % ssbWatWords.length);
+                              setWatTimeRemaining(watDuration);
+                            }
+                          }}
+                          placeholder={`Type response for "${ssbWatWords[watIndex]}" (Press Enter)...`}
+                          className="w-full bg-[#1F1F1F] border border-[#3A3A3A] rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-center font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom Navigation */}
+                    <div className="flex items-center justify-between text-xs pt-2">
+                      <button
+                        onClick={() => {
+                          setWatIndex(prev => (prev === 0 ? ssbWatWords.length - 1 : prev - 1));
+                          setWatTimeRemaining(watDuration);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#202020] hover:bg-[#2C2C2C] text-gray-200 flex items-center gap-1 font-semibold border border-white/10"
+                      >
+                        <ChevronLeft className="w-4 h-4" /> Previous
+                      </button>
+
+                      <div className="text-[11px] font-mono text-gray-400">
+                        Completed: {Object.keys(watResponses).length} / 60
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (watCurrentInput.trim()) {
+                            setWatResponses(prev => ({ ...prev, [watIndex]: watCurrentInput.trim() }));
+                            setWatCurrentInput('');
+                          }
+                          setWatIndex(prev => (prev + 1) % ssbWatWords.length);
+                          setWatTimeRemaining(watDuration);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-brand-gold text-brand-dark flex items-center gap-1 font-bold shadow"
+                      >
+                        Next Word <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                  </div>
+                )}
+
+                {/* 6. REAL INTERACTIVE SRT SIMULATION (15 SITUATIONS WITH CHANGEABLE TIMERS) */}
+                {screenShareType === 'srt' && (
+                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                    {/* Top Control Bar */}
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-brand-gold font-mono text-sm">
+                          Situation {srtIndex + 1}/15
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[10px]">
+                          30s Crisis Reaction
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setSimIsRunning(!simIsRunning)}
+                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                        >
+                          {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setSrtTimeRemaining(srtDuration);
+                            setSimIsRunning(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-[#252525] text-gray-300 border border-white/10"
+                          title="Restart Situation Timer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => setShowSrtSettings(!showSrtSettings)}
+                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span>Timer</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Change SRT Timing */}
+                    {showSrtSettings && (
+                      <div className="p-3 my-2 rounded-xl bg-[#202020] border border-brand-gold/50 text-left text-xs space-y-2 animate-fadeIn">
+                        <div className="flex items-center justify-between font-bold text-brand-gold">
+                          <span>Change Situation Timer</span>
+                          <button onClick={() => setShowSrtSettings(false)} className="text-gray-400 hover:text-white">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          {[20, 30, 45, 60].map(sec => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setSrtDuration(sec);
+                                setSrtTimeRemaining(sec);
+                              }}
+                              className={`flex-1 py-1.5 rounded-xl font-mono text-xs font-semibold ${
+                                srtDuration === sec 
+                                  ? 'bg-brand-gold text-brand-dark' 
+                                  : 'bg-[#2A2A2A] text-gray-300 hover:text-white'
+                              }`}
+                            >
+                              {sec}s {sec === 30 && '(SSB Standard)'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Situation Card */}
+                    <div className="my-auto p-6 sm:p-8 rounded-3xl bg-[#141414] border-2 border-brand-gold/40 flex flex-col items-center justify-center space-y-4 shadow-2xl">
+                      <span className="text-xs font-mono text-emerald-400 uppercase tracking-widest font-semibold">
+                        Real-Life SSB Dilemma · {srtTimeRemaining}s Left
+                      </span>
+                      
+                      <p className="text-base sm:text-lg text-white font-medium leading-relaxed max-w-lg text-left bg-[#1B1B1B] p-4 rounded-xl border border-white/10">
+                        {ssbSrtSituations[srtIndex].text}
+                      </p>
+
+                      <div className="w-full max-w-lg">
+                        <input
+                          value={srtCurrentInput}
+                          onChange={(e) => setSrtCurrentInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && srtCurrentInput.trim()) {
+                              setSrtResponses(prev => ({ ...prev, [srtIndex]: srtCurrentInput.trim() }));
+                              setSrtCurrentInput('');
+                              setSrtIndex(curr => (curr + 1) % ssbSrtSituations.length);
+                              setSrtTimeRemaining(srtDuration);
+                            }
+                          }}
+                          placeholder="Type quick spontaneous action (Press Enter)..."
+                          className="w-full bg-[#1F1F1F] border border-[#3A3A3A] rounded-xl px-4 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bottom Nav */}
+                    <div className="flex items-center justify-between text-xs pt-2">
+                      <button
+                        onClick={() => {
+                          setSrtIndex(prev => (prev === 0 ? ssbSrtSituations.length - 1 : prev - 1));
+                          setSrtTimeRemaining(srtDuration);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#202020] text-gray-200 flex items-center gap-1 font-semibold"
+                      >
+                        <ChevronLeft className="w-4 h-4" /> Previous
+                      </button>
+
+                      <span className="text-xs font-mono text-gray-400">
+                        Answered: {Object.keys(srtResponses).length} / 15
+                      </span>
+
+                      <button
+                        onClick={() => {
+                          if (srtCurrentInput.trim()) {
+                            setSrtResponses(prev => ({ ...prev, [srtIndex]: srtCurrentInput.trim() }));
+                            setSrtCurrentInput('');
+                          }
+                          setSrtIndex(prev => (prev + 1) % ssbSrtSituations.length);
+                          setSrtTimeRemaining(srtDuration);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-brand-gold text-brand-dark flex items-center gap-1 font-bold"
+                      >
+                        Next Situation <ChevronRight className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {/* 5. WAT Deck */}
-                {screenShareType === 'wat' && (
-                  <div className="w-full max-w-md p-6 rounded-2xl bg-[#161616] border border-brand-gold/50 text-center space-y-4 shadow-2xl">
-                    <span className="text-[10px] font-mono text-gray-400">Word 1 of 7</span>
-                    <h2 className="text-3xl sm:text-4xl font-black font-mono text-brand-gold tracking-widest">
-                      LEADERSHIP
-                    </h2>
-                    <p className="text-xs text-gray-400 font-mono">Formulate an authentic, active, OLQ-aligned sentence.</p>
+                {/* 7. REAL INTERACTIVE SDT SIMULATION (5 PILLARS) */}
+                {screenShareType === 'sdt' && (
+                  <div className="w-full max-w-2xl h-full flex flex-col justify-between p-3 sm:p-5 text-center select-none overflow-y-auto">
+                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
+                      <span className="font-bold text-brand-gold font-mono">
+                        Pillar {sdtSection + 1}/5: {ssbSdtPillars[sdtSection].title}
+                      </span>
+                      <span className="font-mono text-emerald-400 font-bold">
+                        {Math.floor(sdtTimeRemaining / 60)}m {sdtTimeRemaining % 60}s Left
+                      </span>
+                    </div>
+
+                    <div className="my-auto p-6 rounded-2xl bg-[#141414] border border-brand-gold/40 text-left space-y-4">
+                      <h3 className="text-lg font-bold text-brand-gold font-mono">{ssbSdtPillars[sdtSection].title}</h3>
+                      <p className="text-xs text-gray-300 leading-relaxed">{ssbSdtPillars[sdtSection].question}</p>
+                      
+                      <textarea
+                        rows={6}
+                        value={sdtResponses[sdtSection] || ''}
+                        onChange={(e) => setSdtResponses(prev => ({ ...prev, [sdtSection]: e.target.value }))}
+                        placeholder="Formulate your structured paragraph for this pillar..."
+                        className="w-full bg-[#1C1C1C] border border-[#333] rounded-xl p-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-2">
+                      <button
+                        onClick={() => setSdtSection(prev => Math.max(0, prev - 1))}
+                        disabled={sdtSection === 0}
+                        className="px-3 py-1.5 rounded-xl bg-[#202020] text-gray-200 disabled:opacity-40"
+                      >
+                        Previous Pillar
+                      </button>
+                      <button
+                        onClick={() => setSdtSection(prev => Math.min(4, prev + 1))}
+                        disabled={sdtSection === 4}
+                        className="px-3 py-1.5 rounded-xl bg-brand-gold text-brand-dark font-bold disabled:opacity-40"
+                      >
+                        Next Pillar
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* 6. PIQ Form */}
+                {/* 8. PIQ Form */}
                 {screenShareType === 'piq' && (
                   <div className="w-full max-w-lg p-4 rounded-xl bg-[#121212] border border-[#2B2B2B] text-left text-xs font-mono space-y-2">
                     <p className="font-bold text-brand-gold text-sm">CANDIDATE DOSSIER (PIQ)</p>
@@ -1134,107 +1924,331 @@ export const ZoomMeetingPage: React.FC = () => {
             {/* TAB: SSB DRILLS */}
             {activeDrawer === 'drills' && (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="grid grid-cols-3 p-2 bg-[#121212] border-b border-[#242424] text-xs font-semibold">
+                {/* Tab Strip: All SSB Simulations */}
+                <div className="grid grid-cols-5 p-1.5 bg-[#121212] border-b border-[#242424] text-[11px] font-semibold gap-1">
                   <button
                     onClick={() => setDrillTab('tat')}
-                    className={`py-1 rounded-md ${drillTab === 'tat' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                    className={`py-1 rounded-md transition-colors ${drillTab === 'tat' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-gray-400 hover:text-white'}`}
                   >
-                    TAT Drill
+                    TAT (12)
                   </button>
                   <button
                     onClick={() => setDrillTab('wat')}
-                    className={`py-1 rounded-md ${drillTab === 'wat' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                    className={`py-1 rounded-md transition-colors ${drillTab === 'wat' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-gray-400 hover:text-white'}`}
                   >
-                    WAT Drill
+                    WAT (60)
+                  </button>
+                  <button
+                    onClick={() => setDrillTab('srt')}
+                    className={`py-1 rounded-md transition-colors ${drillTab === 'srt' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    SRT (15)
+                  </button>
+                  <button
+                    onClick={() => setDrillTab('sdt')}
+                    className={`py-1 rounded-md transition-colors ${drillTab === 'sdt' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    SDT (5)
                   </button>
                   <button
                     onClick={() => setDrillTab('piq')}
-                    className={`py-1 rounded-md ${drillTab === 'piq' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                    className={`py-1 rounded-md transition-colors ${drillTab === 'piq' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-gray-400 hover:text-white'}`}
                   >
-                    PIQ Audit
+                    PIQ
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+                <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-xs">
+                  
+                  {/* ── TAB 1: TAT DRILL (12 SLIDES WITH CHANGEABLE TIMINGS) ── */}
                   {drillTab === 'tat' && (
                     <div className="space-y-3">
-                      <div className="p-3 rounded-xl bg-[#1E1E1E] border border-[#303030] flex justify-between items-center">
+                      {/* Status & Timing Header */}
+                      <div className="p-2.5 rounded-xl bg-[#1E1E1E] border border-[#303030] flex justify-between items-center">
                         <div>
-                          <span className="text-[10px] text-gray-400 uppercase font-mono">Phase</span>
-                          <p className="font-bold text-white">30s Observation Phase</p>
+                          <span className="text-[10px] text-gray-400 uppercase font-mono">
+                            Slide {tatSlideIndex + 1} of 12
+                          </span>
+                          <p className="font-bold text-white text-xs">
+                            {tatPhase === 'observe' ? '30s Observation Phase' : '4m Story Formulation'}
+                          </p>
                         </div>
-                        <span className="text-base font-bold text-brand-gold font-mono">{tatCountdown}s</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-brand-gold font-mono">
+                            {tatPhase === 'observe' ? `${tatTimeRemaining}s` : `${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s`}
+                          </span>
+                          <button
+                            onClick={() => setSimIsRunning(!simIsRunning)}
+                            className="p-1 rounded bg-[#2A2A2A] text-gray-300"
+                          >
+                            {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                          </button>
+                        </div>
                       </div>
 
+                      {/* Changeable Timing Buttons */}
+                      <div className="p-2 rounded-xl bg-[#181818] border border-white/5 space-y-1.5 text-[11px]">
+                        <span className="text-gray-400 block font-mono">Change Slide Observation Time:</span>
+                        <div className="flex gap-1">
+                          {[15, 30, 45, 60].map(sec => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setTatObserveDuration(sec);
+                                if (tatPhase === 'observe') setTatTimeRemaining(sec);
+                              }}
+                              className={`flex-1 py-1 rounded text-[10px] font-mono font-semibold ${
+                                tatObserveDuration === sec ? 'bg-brand-gold text-brand-dark' : 'bg-[#252525] text-gray-300'
+                              }`}
+                            >
+                              {sec}s {sec === 30 && '★'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Slide Thumbnail & Title */}
+                      <div className="p-2 rounded-xl bg-[#161616] border border-white/10 flex items-center gap-2.5">
+                        {tatSlideIndex === 11 ? (
+                          <div className="w-14 h-10 rounded bg-black border border-dashed border-brand-gold/50 flex items-center justify-center text-[9px] font-mono text-brand-gold shrink-0">
+                            BLANK
+                          </div>
+                        ) : (
+                          <img
+                            src={ssbTatSlides[tatSlideIndex].imageUrl}
+                            alt=""
+                            className="w-14 h-10 rounded object-cover filter grayscale shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white truncate text-[11px]">{ssbTatSlides[tatSlideIndex].title}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{ssbTatSlides[tatSlideIndex].context}</p>
+                        </div>
+                      </div>
+
+                      {/* Story Formulation Box */}
                       <div>
-                        <label className="text-gray-300 font-medium block mb-1">Your Story Formulation:</label>
+                        <label className="text-gray-300 font-medium block mb-1">
+                          Story for Slide {tatSlideIndex + 1}:
+                        </label>
                         <textarea
                           rows={6}
-                          value={candidateStory}
-                          onChange={(e) => setCandidateStory(e.target.value)}
-                          placeholder="Type main hero, background action, crisis resolution, and outcome..."
+                          value={tatCurrentStory}
+                          onChange={(e) => setTatCurrentStory(e.target.value)}
+                          placeholder="Identify hero, age/gender, past events, current action taken, and logical positive outcome..."
                           className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
                         />
                         <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
-                          <span>Words: {candidateStory.trim() ? candidateStory.trim().split(/\s+/).length : 0}</span>
+                          <span>Words: {tatCurrentStory.trim() ? tatCurrentStory.trim().split(/\s+/).length : 0}</span>
                           <span>Target: 100-120</span>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => {
-                          setChatMessages(prev => [
-                            ...prev,
-                            {
-                              sender: candidateName,
-                              text: `[TAT Story Submission]: ${candidateStory}`,
-                              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                              isMe: true,
-                              tag: 'Chest 24'
-                            }
-                          ]);
-                          setCandidateStory('');
-                          setActiveDrawer('chat');
-                        }}
-                        disabled={!candidateStory.trim()}
-                        className="w-full py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs disabled:opacity-40 transition-colors shadow"
-                      >
-                        Submit to Assessor
-                      </button>
-                    </div>
-                  )}
-
-                  {drillTab === 'wat' && (
-                    <div className="space-y-3">
-                      <div className="p-4 rounded-xl bg-[#1E1E1E] border border-brand-gold/40 text-center space-y-2">
-                        <span className="text-[10px] font-mono text-gray-400">Word ({watIndex + 1}/7)</span>
-                        <h4 className="text-2xl font-black font-mono tracking-widest text-brand-gold">{watWords[watIndex]}</h4>
-                        <span className="text-xs font-mono text-emerald-400">{watTimer}s</span>
-                      </div>
-
-                      <div className="space-y-2">
-                        <input
-                          value={watInput}
-                          onChange={(e) => setWatInput(e.target.value)}
-                          placeholder="Type active OLQ association sentence..."
-                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
-                        />
+                      <div className="flex gap-2">
                         <button
                           onClick={() => {
-                            if (!watInput.trim()) return;
-                            setWatInput('');
-                            setWatIndex(idx => (idx + 1) % watWords.length);
-                            setWatTimer(15);
+                            if (!tatCurrentStory.trim()) return;
+                            setTatStories(prev => ({ ...prev, [tatSlideIndex]: tatCurrentStory.trim() }));
+                            setChatMessages(prev => [
+                              ...prev,
+                              {
+                                sender: candidateName,
+                                text: `[TAT Slide ${tatSlideIndex + 1} Story]: ${tatCurrentStory.trim()}`,
+                                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                isMe: true,
+                                tag: 'Chest 24'
+                              }
+                            ]);
+                            setTatCurrentStory('');
+                            setTatSlideIndex(prev => (prev + 1) % 12);
+                            setTatPhase('observe');
+                            setTatTimeRemaining(tatObserveDuration);
                           }}
-                          disabled={!watInput.trim()}
-                          className="w-full py-2 rounded-xl bg-brand-gold text-brand-dark font-bold text-xs disabled:opacity-40"
+                          disabled={!tatCurrentStory.trim()}
+                          className="flex-1 py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs disabled:opacity-40 transition-colors shadow"
                         >
-                          Next Word
+                          Submit & Next Slide
                         </button>
                       </div>
                     </div>
                   )}
 
+                  {/* ── TAB 2: WAT DRILL (60 WORDS WITH CHANGEABLE TIMINGS) ── */}
+                  {drillTab === 'wat' && (
+                    <div className="space-y-3">
+                      {/* Word Banner */}
+                      <div className="p-4 rounded-xl bg-[#1E1E1E] border border-brand-gold/40 text-center space-y-2">
+                        <span className="text-[10px] font-mono text-gray-400">Word ({watIndex + 1}/60)</span>
+                        <h4 className="text-3xl font-black font-mono tracking-widest text-brand-gold">
+                          {ssbWatWords[watIndex]}
+                        </h4>
+                        <span className="text-sm font-mono text-emerald-400 font-bold">{watTimeRemaining}s</span>
+                      </div>
+
+                      {/* Change Timing */}
+                      <div className="p-2 rounded-xl bg-[#181818] border border-white/5 space-y-1.5 text-[11px]">
+                        <span className="text-gray-400 block font-mono">Change Word Timer:</span>
+                        <div className="flex gap-1">
+                          {[10, 12, 15, 20].map(sec => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setWatDuration(sec);
+                                setWatTimeRemaining(sec);
+                              }}
+                              className={`flex-1 py-1 rounded text-[10px] font-mono font-semibold ${
+                                watDuration === sec ? 'bg-brand-gold text-brand-dark' : 'bg-[#252525] text-gray-300'
+                              }`}
+                            >
+                              {sec}s {sec === 15 && '★'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Word Input */}
+                      <div className="space-y-2">
+                        <input
+                          value={watCurrentInput}
+                          onChange={(e) => setWatCurrentInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && watCurrentInput.trim()) {
+                              setWatResponses(prev => ({ ...prev, [watIndex]: watCurrentInput.trim() }));
+                              setWatCurrentInput('');
+                              setWatIndex(idx => (idx + 1) % ssbWatWords.length);
+                              setWatTimeRemaining(watDuration);
+                            }
+                          }}
+                          placeholder={`Active sentence for "${ssbWatWords[watIndex]}"...`}
+                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                        />
+                        
+                        <button
+                          onClick={() => {
+                            if (watCurrentInput.trim()) {
+                              setWatResponses(prev => ({ ...prev, [watIndex]: watCurrentInput.trim() }));
+                              setWatCurrentInput('');
+                            }
+                            setWatIndex(idx => (idx + 1) % ssbWatWords.length);
+                            setWatTimeRemaining(watDuration);
+                          }}
+                          className="w-full py-2 rounded-xl bg-brand-gold text-brand-dark font-bold text-xs shadow"
+                        >
+                          Submit Word ({watIndex + 1}/60)
+                        </button>
+                      </div>
+
+                      {/* Logged sentences summary */}
+                      <div className="pt-2 border-t border-white/5 text-[11px] font-mono space-y-1">
+                        <span className="text-gray-400">Answered: {Object.keys(watResponses).length} of 60</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB 3: SRT DRILL (15 CRISIS SITUATIONS) ── */}
+                  {drillTab === 'srt' && (
+                    <div className="space-y-3">
+                      <div className="p-3 rounded-xl bg-[#1E1E1E] border border-[#303030] space-y-2">
+                        <div className="flex justify-between items-center text-[10px] font-mono text-gray-400">
+                          <span>Situation {srtIndex + 1}/15</span>
+                          <span className="text-emerald-400 font-bold">{srtTimeRemaining}s</span>
+                        </div>
+                        <p className="text-xs text-white leading-relaxed font-medium">
+                          {ssbSrtSituations[srtIndex].text}
+                        </p>
+                      </div>
+
+                      {/* Change SRT Timing */}
+                      <div className="p-2 rounded-xl bg-[#181818] border border-white/5 space-y-1 text-[10px] font-mono">
+                        <span className="text-gray-400 block">Timer:</span>
+                        <div className="flex gap-1">
+                          {[20, 30, 45, 60].map(sec => (
+                            <button
+                              key={sec}
+                              onClick={() => {
+                                setSrtDuration(sec);
+                                setSrtTimeRemaining(sec);
+                              }}
+                              className={`flex-1 py-1 rounded text-[10px] font-semibold ${
+                                srtDuration === sec ? 'bg-brand-gold text-brand-dark' : 'bg-[#252525] text-gray-300'
+                              }`}
+                            >
+                              {sec}s {sec === 30 && '★'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-gray-300 font-medium block mb-1">Your Reaction:</label>
+                        <textarea
+                          rows={4}
+                          value={srtCurrentInput}
+                          onChange={(e) => setSrtCurrentInput(e.target.value)}
+                          placeholder="Type immediate decisive action..."
+                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (srtCurrentInput.trim()) {
+                            setSrtResponses(prev => ({ ...prev, [srtIndex]: srtCurrentInput.trim() }));
+                            setSrtCurrentInput('');
+                          }
+                          setSrtIndex(prev => (prev + 1) % ssbSrtSituations.length);
+                          setSrtTimeRemaining(srtDuration);
+                        }}
+                        className="w-full py-2.5 rounded-xl bg-brand-gold text-brand-dark font-bold text-xs"
+                      >
+                        Submit & Next Situation
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ── TAB 4: SDT DRILL (5 PILLARS) ── */}
+                  {drillTab === 'sdt' && (
+                    <div className="space-y-3">
+                      <div className="p-3 rounded-xl bg-[#1E1E1E] border border-brand-gold/40 space-y-1">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <span className="text-brand-gold font-bold">{ssbSdtPillars[sdtSection].title}</span>
+                          <span className="text-emerald-400">{Math.floor(sdtTimeRemaining / 60)}m left</span>
+                        </div>
+                        <p className="text-[11px] text-gray-300 leading-relaxed">
+                          {ssbSdtPillars[sdtSection].question}
+                        </p>
+                      </div>
+
+                      <div>
+                        <textarea
+                          rows={6}
+                          value={sdtResponses[sdtSection] || ''}
+                          onChange={(e) => setSdtResponses(prev => ({ ...prev, [sdtSection]: e.target.value }))}
+                          placeholder="Write structured paragraph reflecting genuine traits..."
+                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSdtSection(prev => Math.max(0, prev - 1))}
+                          disabled={sdtSection === 0}
+                          className="flex-1 py-2 rounded-xl bg-[#222] text-gray-300 font-semibold disabled:opacity-40"
+                        >
+                          Prev Pillar
+                        </button>
+                        <button
+                          onClick={() => setSdtSection(prev => Math.min(4, prev + 1))}
+                          disabled={sdtSection === 4}
+                          className="flex-1 py-2 rounded-xl bg-brand-gold text-brand-dark font-bold disabled:opacity-40"
+                        >
+                          Next Pillar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── TAB 5: PIQ DOSSIER AUDIT ── */}
                   {drillTab === 'piq' && (
                     <div className="p-3 rounded-xl bg-[#1E1E1E] border border-white/5 space-y-2 text-xs font-mono">
                       <span className="text-brand-gold font-bold block font-sans">Aspirant Dossier (Chest 24)</span>
@@ -1252,6 +2266,7 @@ export const ZoomMeetingPage: React.FC = () => {
                       </div>
                     </div>
                   )}
+
                 </div>
               </div>
             )}
@@ -1534,7 +2549,7 @@ export const ZoomMeetingPage: React.FC = () => {
                 </div>
               </button>
 
-              {/* Option 5: TAT Deck */}
+              {/* Option 5: TAT Simulation Deck */}
               <button
                 onClick={() => startPresentation('tat')}
                 className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-purple-500/30 text-left flex items-center gap-3 transition-colors"
@@ -1544,10 +2559,61 @@ export const ZoomMeetingPage: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">TAT Psychological Picture Deck</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">Stimulus</span>
+                    <h4 className="font-semibold text-white">TAT Psychological Test (12 Slides)</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">12 Pictures</span>
                   </div>
-                  <p className="text-[10px] text-gray-400 truncate">Official 30s observation image on stage</p>
+                  <p className="text-[10px] text-gray-400 truncate">30s Observation + 4m Writing with Changeable Timers</p>
+                </div>
+              </button>
+
+              {/* Option 6: WAT Word Association Battery */}
+              <button
+                onClick={() => startPresentation('wat')}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
+                  <Target className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">WAT Word Association (60 Words)</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">15s Rapid</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">60 Real SSB Defence Words with Auto-Advance</p>
+                </div>
+              </button>
+
+              {/* Option 7: SRT Situation Reaction Test */}
+              <button
+                onClick={() => startPresentation('srt')}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">SRT Situation Reaction (15 Scenarios)</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">30s Crisis</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Real SSB Crisis Dilemmas with Immediate Reaction</p>
+                </div>
+              </button>
+
+              {/* Option 8: SDT Self Description Test */}
+              <button
+                onClick={() => startPresentation('sdt')}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">SDT Self Description (5 Pillars)</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">15 Minutes</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Parents, Teachers, Friends, Self & Aim in Life</p>
                 </div>
               </button>
 
@@ -1702,7 +2768,7 @@ export const ZoomMeetingPage: React.FC = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <Target className="w-4 h-4" />
-                  <span>Tactical SSB Drills (TAT / WAT / PIQ)</span>
+                  <span>Tactical SSB Drills (TAT / WAT / SRT / SDT)</span>
                 </div>
               </button>
 
