@@ -1046,29 +1046,30 @@ export const ZoomMeetingPage: React.FC = () => {
                 {screenShareType === 'tat' && (
                   <div className="w-full max-w-4xl min-h-full flex flex-col justify-start p-2 sm:p-4 text-center overflow-y-auto overscroll-contain touch-scroll space-y-3 pb-16 sm:pb-4">
                     
-                    {/* Top Controls Bar */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-brand-gold font-mono text-sm">
+                    {/* Top Controls Bar (Mobile Aligned) */}
+                    <div className="flex items-center justify-between gap-1.5 p-2 sm:p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs w-full shrink-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-brand-gold font-mono text-xs sm:text-sm shrink-0">
                           Slide {tatSlideIndex + 1}/12
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider ${
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider truncate ${
                           tatPhase === 'observe' 
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse' 
                             : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                         }`}>
-                          {tatPhase === 'observe' ? `Observation (${tatTimeRemaining}s)` : `Writing (${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s)`}
+                          {tatPhase === 'observe' ? `${tatTimeRemaining}s Observe` : `${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s Write`}
                         </span>
                       </div>
 
                       {/* Simulation Actions */}
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setSimIsRunning(!simIsRunning)}
-                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          title={simIsRunning ? 'Pause' : 'Resume'}
                         >
                           {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
-                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                          <span className="hidden sm:inline">{simIsRunning ? 'Pause' : 'Resume'}</span>
                         </button>
 
                         <button
@@ -1092,10 +1093,10 @@ export const ZoomMeetingPage: React.FC = () => {
 
                         <button
                           onClick={() => setShowTatSettings(!showTatSettings)}
-                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1 shadow"
+                          className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow"
                         >
                           <Sliders className="w-3.5 h-3.5" />
-                          <span>Change Time</span>
+                          <span>Time</span>
                         </button>
                       </div>
                     </div>
@@ -1264,24 +1265,25 @@ export const ZoomMeetingPage: React.FC = () => {
                 {screenShareType === 'wat' && (
                   <div className="w-full max-w-2xl min-h-full flex flex-col justify-start p-3 sm:p-5 text-center overflow-y-auto overscroll-contain touch-scroll space-y-4 pb-16 sm:pb-4">
                     
-                    {/* Top Control Bar */}
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-brand-gold font-mono text-sm">
+                    {/* Top Control Bar (Mobile Aligned) */}
+                    <div className="flex items-center justify-between gap-1.5 p-2 sm:p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs w-full shrink-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-brand-gold font-mono text-xs sm:text-sm shrink-0">
                           Word {watIndex + 1}/60
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[10px]">
-                          15s Rapid OLQ Flash
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[9px] sm:text-[10px] truncate">
+                          15s Rapid OLQ
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setSimIsRunning(!simIsRunning)}
-                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          title={simIsRunning ? 'Pause' : 'Resume'}
                         >
                           {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
-                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                          <span className="hidden sm:inline">{simIsRunning ? 'Pause' : 'Resume'}</span>
                         </button>
 
                         <button
@@ -1298,13 +1300,14 @@ export const ZoomMeetingPage: React.FC = () => {
                         <button
                           onClick={() => setSimSoundEnabled(!simSoundEnabled)}
                           className={`p-1.5 rounded-lg border ${simSoundEnabled ? 'bg-brand-gold/20 text-brand-gold border-brand-gold/40' : 'bg-[#252525] text-gray-400 border-white/10'}`}
+                          title="Sound Chime"
                         >
                           {simSoundEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
                         </button>
 
                         <button
                           onClick={() => setShowWatSettings(!showWatSettings)}
-                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1 shadow"
+                          className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-[11px] sm:text-xs flex items-center gap-1 shadow"
                         >
                           <Sliders className="w-3.5 h-3.5" />
                           <span>Timer</span>
@@ -1417,24 +1420,25 @@ export const ZoomMeetingPage: React.FC = () => {
                 {/* 6. REAL INTERACTIVE SRT SIMULATION (15 SITUATIONS WITH CHANGEABLE TIMERS) */}
                 {screenShareType === 'srt' && (
                   <div className="w-full max-w-2xl min-h-full flex flex-col justify-start p-3 sm:p-5 text-center overflow-y-auto overscroll-contain touch-scroll space-y-4 pb-16 sm:pb-4">
-                    {/* Top Control Bar */}
-                    <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-brand-gold font-mono text-sm">
+                    {/* Top Control Bar (Mobile Aligned) */}
+                    <div className="flex items-center justify-between gap-1.5 p-2 sm:p-2.5 rounded-xl bg-[#181818] border border-[#2B2B2B] text-xs w-full shrink-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-brand-gold font-mono text-xs sm:text-sm shrink-0">
                           Situation {srtIndex + 1}/15
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[10px]">
-                          30s Crisis Reaction
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 font-mono text-[9px] sm:text-[10px] truncate">
+                          30s Crisis
                         </span>
                       </div>
 
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => setSimIsRunning(!simIsRunning)}
-                          className="px-2.5 py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          className="p-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-[#252525] hover:bg-[#303030] text-gray-200 text-xs font-semibold flex items-center gap-1 border border-white/10"
+                          title={simIsRunning ? 'Pause' : 'Resume'}
                         >
                           {simIsRunning ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
-                          <span>{simIsRunning ? 'Pause' : 'Resume'}</span>
+                          <span className="hidden sm:inline">{simIsRunning ? 'Pause' : 'Resume'}</span>
                         </button>
 
                         <button
@@ -1450,7 +1454,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                         <button
                           onClick={() => setShowSrtSettings(!showSrtSettings)}
-                          className="px-2.5 py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs flex items-center gap-1"
+                          className="px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-lg bg-brand-gold text-brand-dark font-bold text-[11px] sm:text-xs flex items-center gap-1"
                         >
                           <Sliders className="w-3.5 h-3.5" />
                           <span>Timer</span>
@@ -1605,8 +1609,8 @@ export const ZoomMeetingPage: React.FC = () => {
 
               </div>
 
-              {/* Floating Speaker PIP (Corner overlay during share) */}
-              <div className="absolute bottom-3 right-3 w-28 sm:w-44 aspect-video rounded-lg sm:rounded-xl overflow-hidden border border-white/20 shadow-2xl bg-[#141414] z-20">
+              {/* Floating Speaker PIP (Corner overlay during share: top on mobile, bottom on desktop) */}
+              <div className="absolute top-10 sm:top-auto sm:bottom-3 right-2 sm:right-3 w-20 sm:w-44 aspect-video rounded-lg sm:rounded-xl overflow-hidden border border-white/20 shadow-2xl bg-[#141414] z-20">
                 <img
                   src="/images/mentor-portrait.jpg"
                   alt="Lt. Vamshi E."
@@ -2461,163 +2465,189 @@ export const ZoomMeetingPage: React.FC = () => {
 
       </footer>
 
-      {/* ── 5. SEAMLESS SHARE CONTENT MODAL (ZERO SECURITY NOTICES) ── */}
+      {/* ── 5. SEAMLESS SHARE CONTENT MODAL / MOBILE BOTTOM SHEET ── */}
       {showShareOptionsModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4 animate-fadeIn"
           onClick={() => setShowShareOptionsModal(false)}
         >
           <div
-            className="bg-[#1A1A1A] border border-[#2E2E2E] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative max-h-[85vh] overflow-y-auto overscroll-contain touch-scroll"
+            className="bg-[#181818] border-t sm:border border-[#2C2C2C] w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto overscroll-contain touch-scroll pb-10 sm:pb-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
-              <div className="flex items-center gap-2">
-                <Share2 className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-bold text-sm text-white">Share Content to Stage</h3>
+            {/* Mobile Drag Indicator */}
+            <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-1 sm:hidden" />
+
+            <div className="flex items-center justify-between border-b border-[#262626] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Share2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Share Content to Stage</h3>
+                  <p className="text-[10px] text-gray-400">Broadcast presentation or SSB psychological drills</p>
+                </div>
               </div>
-              <button onClick={() => setShowShareOptionsModal(false)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setShowShareOptionsModal(false)} className="text-gray-400 hover:text-white p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-2 text-xs">
+            <div className="space-y-3.5 text-xs">
               
-              {/* Option 1: Live Screen Capture (PC / Laptop Full Screen) */}
-              <button
-                onClick={startNativeScreenShare}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                  <Monitor className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">Live Computer / PC Screen</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">PC / Mac</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Broadcast entire desktop, window, or Chrome tab</p>
-                </div>
-              </button>
+              {/* SECTION A: PRESENTATION TOOLS (2x2 GRID ON MOBILE) */}
+              <div>
+                <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider block mb-2 font-semibold">
+                  Live Presentation Tools
+                </span>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Tool 1: Computer Screen */}
+                  <button
+                    onClick={startNativeScreenShare}
+                    className="p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex flex-col justify-between gap-2 transition-all active:scale-95"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <Monitor className="w-4 h-4" />
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">PC/Mac</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-xs">Computer Screen</h4>
+                      <p className="text-[10px] text-gray-400 line-clamp-1">Full PC / Tab Share</p>
+                    </div>
+                  </button>
 
-              {/* Option 2: Live Document & Desk Camera (Mobile / Tablet) */}
-              <button
-                onClick={startDocumentCamera}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-amber-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-                  <Camera className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">Live Document & Desk Camera</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Phone / Cam</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Point camera at handwritten story, notes, or monitor</p>
-                </div>
-              </button>
+                  {/* Tool 2: Document Camera */}
+                  <button
+                    onClick={startDocumentCamera}
+                    className="p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-amber-500/30 text-left flex flex-col justify-between gap-2 transition-all active:scale-95"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                        <Camera className="w-4 h-4" />
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Phone/Cam</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-xs">Document Camera</h4>
+                      <p className="text-[10px] text-gray-400 line-clamp-1">Desk & Paper Live</p>
+                    </div>
+                  </button>
 
-              {/* Option 3: Live Finger/Mouse Whiteboard (Works 100% on all mobile & desktop!) */}
-              <button
-                onClick={() => startPresentation('whiteboard')}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
-                  <PenTool className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">Live Interactive Whiteboard</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">Touch & Pen</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Sketch tactical diagrams & write notes live with finger</p>
-                </div>
-              </button>
+                  {/* Tool 3: Whiteboard */}
+                  <button
+                    onClick={() => startPresentation('whiteboard')}
+                    className="p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex flex-col justify-between gap-2 transition-all active:scale-95"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-8 h-8 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
+                        <PenTool className="w-4 h-4" />
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">Drawing</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-xs">Live Whiteboard</h4>
+                      <p className="text-[10px] text-gray-400 line-clamp-1">Tactical Finger Sketch</p>
+                    </div>
+                  </button>
 
-              {/* Option 4: Upload Photo of Handwritten TAT Story / PIQ (Works 100% on phone gallery!) */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <Image className="w-5 h-5" />
+                  {/* Tool 4: Photo Upload */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex flex-col justify-between gap-2 transition-all active:scale-95"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                        <Image className="w-4 h-4" />
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">Gallery</span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-xs">Upload Story/Photo</h4>
+                      <p className="text-[10px] text-gray-400 line-clamp-1">From Phone Gallery</p>
+                    </div>
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">Present Photo / Screenshot</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">Gallery</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Select a story picture, screenshot, or PIQ from device</p>
-                </div>
-              </button>
+              </div>
 
-              {/* Option 5: TAT Simulation Deck */}
-              <button
-                onClick={() => startPresentation('tat')}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-purple-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">TAT Psychological Test (12 Slides)</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">12 Pictures</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">30s Observation + 4m Writing with Changeable Timers</p>
-                </div>
-              </button>
+              {/* SECTION B: SSB PSYCHOLOGICAL TESTING SIMULATIONS */}
+              <div>
+                <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider block mb-2 font-semibold">
+                  Official SSB Psychological Simulations
+                </span>
 
-              {/* Option 6: WAT Word Association Battery */}
-              <button
-                onClick={() => startPresentation('wat')}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
-                  <Target className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">WAT Word Association (60 Words)</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">15s Rapid</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">60 Real SSB Defence Words with Auto-Advance</p>
-                </div>
-              </button>
+                <div className="space-y-2">
+                  {/* TAT Simulator */}
+                  <button
+                    onClick={() => startPresentation('tat')}
+                    className="w-full p-2.5 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-purple-500/30 text-left flex items-center gap-3 transition-colors active:scale-98"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-white text-xs truncate">TAT Psychological Test</h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono shrink-0">12 Slides</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate">30s Observe + 4m Write with Changeable Timers</p>
+                    </div>
+                  </button>
 
-              {/* Option 7: SRT Situation Reaction Test */}
-              <button
-                onClick={() => startPresentation('srt')}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                  <AlertCircle className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">SRT Situation Reaction (15 Scenarios)</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">30s Crisis</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Real SSB Crisis Dilemmas with Immediate Reaction</p>
-                </div>
-              </button>
+                  {/* WAT Simulator */}
+                  <button
+                    onClick={() => startPresentation('wat')}
+                    className="w-full p-2.5 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors active:scale-98"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
+                      <Target className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-white text-xs truncate">WAT Word Association</h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono shrink-0">60 Words</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate">15s Rapid OLQ Flash with Live Candidate Input</p>
+                    </div>
+                  </button>
 
-              {/* Option 8: SDT Self Description Test */}
-              <button
-                onClick={() => startPresentation('sdt')}
-                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <Users className="w-5 h-5" />
+                  {/* SRT Simulator */}
+                  <button
+                    onClick={() => startPresentation('srt')}
+                    className="w-full p-2.5 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors active:scale-98"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <AlertCircle className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-white text-xs truncate">SRT Situation Reaction</h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono shrink-0">15 Scenarios</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate">Real SSB Crisis Dilemmas with Immediate Reaction</p>
+                    </div>
+                  </button>
+
+                  {/* SDT Simulator */}
+                  <button
+                    onClick={() => startPresentation('sdt')}
+                    className="w-full p-2.5 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors active:scale-98"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-white text-xs truncate">SDT Self Description</h4>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono shrink-0">5 Pillars</span>
+                      </div>
+                      <p className="text-[10px] text-gray-400 truncate">Parents, Teachers, Friends, Self & Future Aim</p>
+                    </div>
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-white">SDT Self Description (5 Pillars)</h4>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">15 Minutes</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 truncate">Parents, Teachers, Friends, Self & Aim in Life</p>
-                </div>
-              </button>
+              </div>
 
             </div>
           </div>
