@@ -8,7 +8,7 @@ import {
   Play, Copy, Link as LinkIcon, Download, Clock, 
   FileText, Sparkles, ExternalLink, HelpCircle,
   Volume2, VolumeX, Settings, Target, Award, AlertCircle,
-  Radio, RefreshCw, Pin, Zap
+  MoreVertical, PhoneOff
 } from 'lucide-react';
 import { saveSessionRecording } from '../../lib/supabase';
 
@@ -29,14 +29,19 @@ export const ZoomMeetingPage: React.FC = () => {
   const mentor = searchParams.get('mentor') || 'Lt. Vamshi E.';
   const candidateName = searchParams.get('name') || 'Arjun Sharma';
 
-  // ── HARDWARE & WEBCAM MEDIA STATES ──
+  // Hardware states
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0); // 0 to 100
-  const [isMentorSpeaking, setIsMentorSpeaking] = useState(false);
-  const [voiceAssessorEnabled, setVoiceAssessorEnabled] = useState(true);
+  const [audioLevel, setAudioLevel] = useState(0);
 
+  // Layout & UI
+  const [viewMode, setViewMode] = useState<'speaker' | 'gallery'>('speaker');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'none' | 'chat' | 'participants' | 'drills'>('none');
+  const [showReactionsMenu, setShowReactionsMenu] = useState(false);
+
+  // Hardware Streams
   const userMediaStreamRef = useRef<MediaStream | null>(null);
   const userVideoRef = useRef<HTMLVideoElement | null>(null);
   const userGalleryVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -44,75 +49,51 @@ export const ZoomMeetingPage: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
-  // ── VIEW & NAVIGATION ──
-  const [viewMode, setViewMode] = useState<'speaker' | 'gallery'>('speaker');
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeSideDrawer, setActiveSideDrawer] = useState<'none' | 'chat' | 'participants' | 'drills'>('none');
-  const [showReactionsTray, setShowReactionsTray] = useState(false);
-  const [spotlightTarget, setSpotlightTarget] = useState<'mentor' | 'me'>('mentor');
-
-  // ── FLOATING REACTIONS ──
-  const [activeReaction, setActiveReaction] = useState<string | null>(null);
-  const reactionTimerRef = useRef<number | null>(null);
-  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
-  const reactionCounterRef = useRef(0);
-
-  // ── 1. REAL NATIVE SCREEN SHARING (ZERO MODALS) ──
+  // Screen Share
   const [isSharingScreen, setIsSharingScreen] = useState(false);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [shareError, setShareError] = useState<string | null>(null);
 
-  // ── 2. REAL MEDIARECORDER RECORDING ──
+  // Recording
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const [recordingSavedModal, setRecordingSavedModal] = useState(false);
-  const [savedRecordSummary, setSavedRecordSummary] = useState<{ duration: string; timestamp: string; url?: string } | null>(null);
+  const [savedRecordSummary, setSavedRecordSummary] = useState<{ duration: string; timestamp: string } | null>(null);
 
-  // ── INVITE MODAL ──
+  // Invite Modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // ── TACTICAL ASSESSMENT DRILL STATES ──
-  const [activeDrillTab, setActiveDrillTab] = useState<'tat' | 'wat' | 'piq'>('tat');
-  const [tatTimer, setTatTimer] = useState(30);
+  // Floating Reactions
+  const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
+  const reactionCounterRef = useRef(0);
+
+  // Drills
+  const [drillTab, setDrillTab] = useState<'tat' | 'wat' | 'piq'>('tat');
+  const [tatCountdown, setTatCountdown] = useState(30);
   const [tatPhase, setTatPhase] = useState<'observe' | 'write'>('observe');
-  const [candidateTatStory, setCandidateTatStory] = useState('');
+  const [candidateStory, setCandidateStory] = useState('');
   const [watIndex, setWatIndex] = useState(0);
   const [watTimer, setWatTimer] = useState(15);
-  const [candidateWatSentence, setCandidateWatSentence] = useState('');
-  const [savedWatResponses, setSavedWatResponses] = useState<Array<{ word: string; sentence: string }>>([]);
+  const [watInput, setWatInput] = useState('');
+  const [watHistory, setWatHistory] = useState<Array<{ word: string; sentence: string }>>([]);
 
-  const watList = ['LEADERSHIP', 'OBSTACLE', 'COURAGE', 'INITIATIVE', 'INTEGRITY', 'SACRIFICE', 'RESPONSIBILITY'];
+  const watWords = ['LEADERSHIP', 'OBSTACLE', 'COURAGE', 'INITIATIVE', 'INTEGRITY', 'SACRIFICE', 'RESPONSIBILITY'];
 
-  // ── CHAT & REAL-TIME ASSESSOR RESPONSES ──
-  const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string; isMe: boolean; chest?: string }>>([
-    { 
-      sender: mentor, 
-      text: `Good evening ${candidateName}. Encrypted diagnostic uplink active. We will examine your TAT Story #3 and test your rapid WAT association. Keep your audio live.`, 
-      time: '18:01', 
-      isMe: false, 
-      chest: 'Assessor (AIR 34)' 
-    },
-    { 
-      sender: 'Priya Nair', 
-      text: 'Good evening Sir. Video and audio feed confirmed.', 
-      time: '18:02', 
-      isMe: false, 
-      chest: 'Chest 09' 
-    }
+  // Chat
+  const [chatMessages, setChatMessages] = useState<Array<{ sender: string; text: string; time: string; isMe: boolean; tag?: string }>>([
+    { sender: mentor, text: `Welcome ${candidateName}. We will begin with your TAT psychological deduction. Keep your microphone unmuted when presenting.`, time: '18:00', isMe: false, tag: 'Host' },
+    { sender: 'Priya Nair', text: 'Good evening Sir. Video and audio feed connected.', time: '18:01', isMe: false, tag: 'Chest 09' }
   ]);
   const [chatInput, setChatInput] = useState('');
 
-  // ──────────────────────────────────────────────────────────
-  // 1. INITIALIZE REAL WEBCAM & AUDIO ANALYSER
-  // ──────────────────────────────────────────────────────────
+  // 1. Initialise Hardware (Webcam + Mic Analyser)
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    const initWebcam = async () => {
+    const initDevices = async () => {
       try {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -121,68 +102,54 @@ export const ZoomMeetingPage: React.FC = () => {
           });
           userMediaStreamRef.current = stream;
 
-          if (userVideoRef.current) {
-            userVideoRef.current.srcObject = stream;
-            userVideoRef.current.play().catch(() => {});
-          }
-          if (userGalleryVideoRef.current) {
-            userGalleryVideoRef.current.srcObject = stream;
-            userGalleryVideoRef.current.play().catch(() => {});
-          }
+          if (userVideoRef.current) userVideoRef.current.srcObject = stream;
+          if (userGalleryVideoRef.current) userGalleryVideoRef.current.srcObject = stream;
 
-          // Real mic audio level analyser
+          // Audio Analyser
           try {
             const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
             if (AudioContextClass) {
-              const audioCtx = new AudioContextClass();
-              audioContextRef.current = audioCtx;
-              const source = audioCtx.createMediaStreamSource(stream);
-              const analyser = audioCtx.createAnalyser();
+              const ctx = new AudioContextClass();
+              audioContextRef.current = ctx;
+              const source = ctx.createMediaStreamSource(stream);
+              const analyser = ctx.createAnalyser();
               analyser.fftSize = 64;
               source.connect(analyser);
               analyserRef.current = analyser;
 
               const dataArray = new Uint8Array(analyser.frequencyBinCount);
-              const updateAudioLevel = () => {
+              const loop = () => {
                 if (analyserRef.current && !isMuted) {
                   analyserRef.current.getByteFrequencyData(dataArray);
                   let sum = 0;
-                  for (let i = 0; i < dataArray.length; i++) {
-                    sum += dataArray[i];
-                  }
+                  for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                   const avg = sum / dataArray.length;
-                  setAudioLevel(Math.min(100, Math.round(avg * 1.6)));
+                  setAudioLevel(Math.min(100, Math.round(avg * 1.5)));
                 } else {
                   setAudioLevel(0);
                 }
-                animFrameRef.current = requestAnimationFrame(updateAudioLevel);
+                animFrameRef.current = requestAnimationFrame(loop);
               };
-              updateAudioLevel();
+              loop();
             }
-          } catch (audioErr) {
-            console.warn('Audio analyser notice:', audioErr);
-          }
+          } catch {}
         }
       } catch (err) {
-        console.warn('Webcam permission pending or not granted:', err);
+        console.warn('Webcam/mic access not granted:', err);
       }
     };
 
-    initWebcam();
+    initDevices();
 
-    const handleFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener('fullscreenchange', handleFullscreen);
+    const handleFsChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', handleFsChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreen);
+      document.removeEventListener('fullscreenchange', handleFsChange);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       if (audioContextRef.current) audioContextRef.current.close().catch(() => {});
-      if (userMediaStreamRef.current) {
-        userMediaStreamRef.current.getTracks().forEach(t => t.stop());
-      }
-      if (screenStream) {
-        screenStream.getTracks().forEach(t => t.stop());
-      }
+      if (userMediaStreamRef.current) userMediaStreamRef.current.getTracks().forEach(t => t.stop());
+      if (screenStream) screenStream.getTracks().forEach(t => t.stop());
     };
   }, []);
 
@@ -192,115 +159,72 @@ export const ZoomMeetingPage: React.FC = () => {
       if (userVideoRef.current) userVideoRef.current.srcObject = userMediaStreamRef.current;
       if (userGalleryVideoRef.current) userGalleryVideoRef.current.srcObject = userMediaStreamRef.current;
     }
-  }, [viewMode, isVideoOff, spotlightTarget]);
+  }, [viewMode, isVideoOff]);
 
-  // Sync screen share stream to video element
   useEffect(() => {
     if (screenVideoRef.current && screenStream) {
       screenVideoRef.current.srcObject = screenStream;
-      screenVideoRef.current.play().catch(e => console.warn('Screen video play:', e));
+      screenVideoRef.current.play().catch(() => {});
     }
   }, [screenStream, isSharingScreen]);
 
-  // ──────────────────────────────────────────────────────────
-  // 2. HARDWARE TOGGLES (MIC & CAMERA)
-  // ──────────────────────────────────────────────────────────
+  // Mic & Video Toggles
   const toggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
+    const next = !isMuted;
+    setIsMuted(next);
     if (userMediaStreamRef.current) {
-      userMediaStreamRef.current.getAudioTracks().forEach(t => {
-        t.enabled = !nextMuted;
-      });
+      userMediaStreamRef.current.getAudioTracks().forEach(t => (t.enabled = !next));
     }
   };
 
   const toggleVideo = async () => {
-    const nextVideoOff = !isVideoOff;
-    setIsVideoOff(nextVideoOff);
-
+    const next = !isVideoOff;
+    setIsVideoOff(next);
     if (userMediaStreamRef.current) {
-      userMediaStreamRef.current.getVideoTracks().forEach(t => {
-        t.enabled = !nextVideoOff;
-      });
-    } else if (!nextVideoOff) {
-      // Re-request camera if not initialized
+      userMediaStreamRef.current.getVideoTracks().forEach(t => (t.enabled = !next));
+    } else if (!next) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         userMediaStreamRef.current = stream;
         if (userVideoRef.current) userVideoRef.current.srcObject = stream;
         if (userGalleryVideoRef.current) userGalleryVideoRef.current.srcObject = stream;
-      } catch (e) {
-        console.warn('Could not re-acquire camera:', e);
-      }
+      } catch {}
     }
   };
 
+  // Fullscreen
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen();
-        }
+        await document.documentElement.requestFullscreen();
       } else {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-        }
+        await document.exitFullscreen();
       }
-    } catch (err) {
-      console.warn('Fullscreen action unavailable:', err);
-    }
+    } catch {}
   };
 
-  // ──────────────────────────────────────────────────────────
-  // 3. REAL SCREEN SHARING (DIRECT SYSTEM PICKER)
-  // ──────────────────────────────────────────────────────────
-  const startRealScreenShare = async () => {
-    setShareError(null);
+  // Native Screen Sharing
+  const startScreenShare = async () => {
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        // Direct native browser screen capture (video only ensures maximum cross-browser success)
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true
-        });
-
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
         setScreenStream(stream);
         setIsSharingScreen(true);
 
-        // Immediate track cleanup listener
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          videoTrack.onended = () => {
-            stopScreenShare();
-          };
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          track.onended = () => stopScreenShare();
         }
 
-        // Bind stream directly to video element
         setTimeout(() => {
           if (screenVideoRef.current) {
             screenVideoRef.current.srcObject = stream;
             screenVideoRef.current.play().catch(() => {});
           }
         }, 150);
-
-        setChatMessages(prev => [
-          ...prev,
-          {
-            sender: 'Broadcast System',
-            text: `🖥️ ${candidateName} (Chest 24) is now sharing live computer screen to the mentorship room.`,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isMe: false,
-            chest: 'SYSTEM'
-          }
-        ]);
-      } else {
-        setShareError('Native screen sharing is not supported on this device/browser.');
       }
-    } catch (err: any) {
-      if (err.name !== 'NotAllowedError') {
-        console.warn('Screen share error:', err);
-        setShareError('Screen sharing could not be started: ' + (err.message || 'Permission denied'));
-      }
+    } catch (e: any) {
+      if (e.name !== 'NotAllowedError') console.warn('Screen share error:', e);
     }
   };
 
@@ -312,87 +236,58 @@ export const ZoomMeetingPage: React.FC = () => {
     setIsSharingScreen(false);
   };
 
-  // ──────────────────────────────────────────────────────────
-  // 4. REAL MEDIARECORDING WITH INSTANT DOWNLOAD
-  // ──────────────────────────────────────────────────────────
+  // Recording
   const toggleRecording = async () => {
     if (!isRecording) {
       recordedChunksRef.current = [];
       try {
-        let streamToRecord: MediaStream | null = null;
-        if (screenStream) {
-          streamToRecord = screenStream;
-        } else if (userMediaStreamRef.current) {
-          streamToRecord = userMediaStreamRef.current;
-        } else {
-          // Off-screen canvas fallback
+        let stream = screenStream || userMediaStreamRef.current;
+        if (!stream) {
           const canvas = document.createElement('canvas');
           canvas.width = 640;
           canvas.height = 360;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.fillStyle = '#0B1220';
+            ctx.fillStyle = '#1A1A1A';
             ctx.fillRect(0, 0, 640, 360);
             ctx.fillStyle = '#E6B980';
-            ctx.font = '22px sans-serif';
+            ctx.font = '20px sans-serif';
             ctx.fillText('SSB BRO Live Mentorship Studio', 40, 180);
           }
-          streamToRecord = (canvas as any).captureStream ? (canvas as any).captureStream(15) : null;
+          stream = (canvas as any).captureStream ? (canvas as any).captureStream(15) : null;
         }
 
-        if (streamToRecord && typeof MediaRecorder !== 'undefined') {
-          const recorder = new MediaRecorder(streamToRecord, {
-            mimeType: MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-              ? 'video/webm;codecs=vp9'
-              : MediaRecorder.isTypeSupported('video/webm')
-              ? 'video/webm'
-              : ''
+        if (stream && typeof MediaRecorder !== 'undefined') {
+          const recorder = new MediaRecorder(stream, {
+            mimeType: MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : ''
           });
-
           recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) {
-              recordedChunksRef.current.push(e.data);
-            }
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
           };
-
           recorder.start(1000);
           mediaRecorderRef.current = recorder;
         }
-      } catch (e) {
-        console.warn('Recorder init notice:', e);
-      }
+      } catch {}
 
       setIsRecording(true);
       setRecordSeconds(0);
-      setChatMessages(prev => [
-        ...prev,
-        {
-          sender: 'Military Video Recorder',
-          text: `🔴 Live Class recording initiated. Audio & video stream is archiving to your candidate dossier.`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isMe: false,
-          chest: 'SYSTEM'
-        }
-      ]);
     } else {
       setIsRecording(false);
       const totalSecs = recordSeconds;
-      const durationFormatted = `${Math.floor(totalSecs / 60).toString().padStart(2, '0')}:${(totalSecs % 60).toString().padStart(2, '0')}`;
-      const timestampFormatted = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+      const duration = `${Math.floor(totalSecs / 60).toString().padStart(2, '0')}:${(totalSecs % 60).toString().padStart(2, '0')}`;
+      const timestamp = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
 
-      let videoBlobUrl = '#';
+      let url = '#';
       if (recordedChunksRef.current.length > 0) {
-        const videoBlob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-        videoBlobUrl = URL.createObjectURL(videoBlob);
-
-        // Auto trigger video file download
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = videoBlobUrl;
-        a.download = `SSB-Live-Class-Recording-${new Date().toISOString().substring(0, 10)}.webm`;
+        a.href = url;
+        a.download = `SSB-Live-Class-${new Date().toISOString().substring(0, 10)}.webm`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -406,92 +301,23 @@ export const ZoomMeetingPage: React.FC = () => {
         candidate_name: candidateName,
         duration_seconds: totalSecs,
         recorded_at: new Date().toISOString(),
-        recording_url: videoBlobUrl,
-        notes: `SSB Psychological Assessment and Real Screen Share Review.`
+        recording_url: url
       });
 
-      setSavedRecordSummary({ duration: durationFormatted, timestamp: timestampFormatted, url: videoBlobUrl });
+      setSavedRecordSummary({ duration, timestamp });
       setRecordingSavedModal(true);
     }
   };
 
   useEffect(() => {
     let t: any = null;
-    if (isRecording) {
-      t = setInterval(() => setRecordSeconds(s => s + 1), 1000);
-    }
+    if (isRecording) t = setInterval(() => setRecordSeconds(s => s + 1), 1000);
     return () => clearInterval(t);
   }, [isRecording]);
 
-  // ──────────────────────────────────────────────────────────
-  // 5. TACTICAL DRILL TIMERS (TAT & WAT)
-  // ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    let t: any = null;
-    if (activeSideDrawer === 'drills' && activeDrillTab === 'tat') {
-      t = setInterval(() => {
-        setTatTimer(prev => {
-          if (prev <= 1) {
-            setTatPhase(prevPhase => (prevPhase === 'observe' ? 'write' : 'observe'));
-            return tatPhase === 'observe' ? 240 : 30;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(t);
-  }, [activeSideDrawer, activeDrillTab, tatPhase]);
-
-  useEffect(() => {
-    let t: any = null;
-    if (activeSideDrawer === 'drills' && activeDrillTab === 'wat') {
-      t = setInterval(() => {
-        setWatTimer(prev => {
-          if (prev <= 1) {
-            setWatIndex(idx => (idx + 1) % watList.length);
-            return 15;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(t);
-  }, [activeSideDrawer, activeDrillTab]);
-
-  const handleSaveWatSentence = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!candidateWatSentence.trim()) return;
-    setSavedWatResponses(prev => [
-      ...prev,
-      { word: watList[watIndex], sentence: candidateWatSentence.trim() }
-    ]);
-    setCandidateWatSentence('');
-    setWatIndex(idx => (idx + 1) % watList.length);
-    setWatTimer(15);
-  };
-
-  // ──────────────────────────────────────────────────────────
-  // 6. INTELLIGENT ASSESSOR SPEECH & REAL RESPONSES
-  // ──────────────────────────────────────────────────────────
-  const speakAssessor = (text: string) => {
-    if (!voiceAssessorEnabled || typeof window === 'undefined' || !window.speechSynthesis) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 0.95;
-      setIsMentorSpeaking(true);
-      utterance.onend = () => setIsMentorSpeaking(false);
-      utterance.onerror = () => setIsMentorSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-    } catch {}
-  };
-
+  // Reactions
   const triggerReaction = (emoji: string) => {
-    setActiveReaction(emoji);
-    if (reactionTimerRef.current) clearTimeout(reactionTimerRef.current);
-    reactionTimerRef.current = window.setTimeout(() => setActiveReaction(null), 3500);
-
+    setShowReactionsMenu(false);
     const newItems: FloatingReaction[] = [
       { id: ++reactionCounterRef.current, emoji, left: 45 + Math.random() * 20, delay: 0 },
       { id: ++reactionCounterRef.current, emoji, left: 40 + Math.random() * 30, delay: 0.15 },
@@ -504,989 +330,824 @@ export const ZoomMeetingPage: React.FC = () => {
   };
 
   const handleToggleHandRaise = () => {
+    setShowReactionsMenu(false);
     const next = !handRaised;
     setHandRaised(next);
     if (next) {
       triggerReaction('✋');
-      speakAssessor(`Chest 24, go ahead. State your deduction for this psychological stimulus.`);
       setTimeout(() => {
         setChatMessages(prev => [
           ...prev,
           {
             sender: mentor,
-            text: `Chest 24 (${candidateName}), unmuting approved. State your deduction for this psychological stimulus.`,
+            text: `Chest 24 (${candidateName}), unmuting approved. Please state your deduction.`,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isMe: false,
-            chest: 'Assessor (AIR 34)'
+            tag: 'Host'
           }
         ]);
-      }, 800);
+      }, 1000);
     }
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    const userText = chatInput.trim();
     setChatMessages(prev => [
       ...prev,
       {
         sender: candidateName,
-        text: userText,
+        text: chatInput.trim(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isMe: true,
-        chest: 'Chest 24'
+        tag: 'You'
       }
     ]);
     setChatInput('');
+  };
 
-    // Simulated Real-Time Assessor reply
-    setTimeout(() => {
-      let reply = `Good observation, Chest 24. Ensure your story shows concrete constructive action and natural team leadership rather than pretense.`;
-      if (userText.toLowerCase().includes('wat') || userText.toLowerCase().includes('word')) {
-        reply = `In WAT, avoid pre-learned generic moral quotes. Formulate an active, OLQ-driven personal reaction showing initiative.`;
-      } else if (userText.toLowerCase().includes('tat') || userText.toLowerCase().includes('story')) {
-        reply = `For this TAT card, establish: 1) What led to the event, 2) The hero's immediate plan, 3) The positive outcome.`;
-      } else if (userText.toLowerCase().includes('interview') || userText.toLowerCase().includes('piq')) {
-        reply = `Cross-examination in the interview verifies authenticity between your PIQ claims and your genuine everyday routine.`;
-      }
-
-      setChatMessages(prev => [
-        ...prev,
-        {
-          sender: mentor,
-          text: reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isMe: false,
-          chest: 'Assessor (AIR 34)'
-        }
-      ]);
-      speakAssessor(reply);
-    }, 1500);
+  const handleLeave = () => {
+    if (userMediaStreamRef.current) userMediaStreamRef.current.getTracks().forEach(t => t.stop());
+    if (screenStream) screenStream.getTracks().forEach(t => t.stop());
+    navigate('/student/sessions');
   };
 
   const shareUrl = `${window.location.origin}/student/live-meeting?code=${meetingCode.replace(/\s+/g, '')}&passcode=${passcode}&topic=${encodeURIComponent(topic)}`;
 
-  const copyToClipboard = async (text: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2500);
-    } catch {
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2500);
-    }
-  };
-
-  const handleLeaveClass = async () => {
-    if (userMediaStreamRef.current) {
-      userMediaStreamRef.current.getTracks().forEach(t => t.stop());
-    }
-    if (screenStream) {
-      screenStream.getTracks().forEach(t => t.stop());
-    }
-    if (document.fullscreenElement && document.exitFullscreen) {
-      try {
-        await document.exitFullscreen();
-      } catch {}
-    }
-    navigate('/student/sessions');
-  };
-
   return (
-    <div className="fixed inset-0 z-[100] bg-[#070A11] text-gray-100 flex flex-col justify-between overflow-hidden select-none font-sans antialiased">
+    <div className="fixed inset-0 z-[100] bg-[#121212] text-white flex flex-col justify-between overflow-hidden select-none font-sans">
 
-      {/* ── 1. COMMAND HEADER RIBBON (48px) ── */}
-      <header className="h-12 px-3 sm:px-6 bg-[#0B101C] border-b border-[#1A2538] flex items-center justify-between shrink-0 z-30">
+      {/* ── 1. ULTRA-SLEEK TOP NAVIGATION (44px) ── */}
+      <header className="h-11 px-4 bg-[#181818] border-b border-[#282828] flex items-center justify-between shrink-0 z-30">
         
-        {/* Left: Live Beacon & Title */}
+        {/* Left: Meeting Info & Live Indicator */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-heading font-black text-xs sm:text-sm tracking-wider text-brand-gold uppercase">
-              SSB BRO LIVE STUDIO
+            <span className="font-semibold text-xs tracking-wide text-gray-200">
+              Live Mentorship Studio
             </span>
           </div>
 
-          <span className="text-gray-600 hidden md:inline">|</span>
+          <span className="text-gray-600 hidden sm:inline">|</span>
 
-          <div className="hidden lg:flex items-center gap-2 text-xs text-gray-300">
-            <span className="font-medium text-white truncate max-w-xs">{topic}</span>
-            <span className="px-2 py-0.5 rounded-full bg-brand-gold/15 border border-brand-gold/30 text-[10px] font-mono text-brand-gold">
-              Lt. Vamshi E. (AIR 34 CDS 2)
-            </span>
-          </div>
+          <span className="text-xs text-gray-400 hidden md:inline truncate max-w-xs">
+            {topic}
+          </span>
 
           {/* Recording Badge */}
           {isRecording && (
-            <div className="flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-red-950/90 border border-red-500 text-[11px] font-mono text-red-300 animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
+            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-950/80 border border-red-500/60 text-[11px] font-mono text-red-300">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
               <span className="font-bold">REC</span>
               <span>{`${Math.floor(recordSeconds / 60).toString().padStart(2, '0')}:${(recordSeconds % 60).toString().padStart(2, '0')}`}</span>
             </div>
           )}
         </div>
 
-        {/* Center: Meeting Code Pill (1-Click Copy) */}
-        <button
-          onClick={() => setShowInviteModal(true)}
-          className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-[#121B2C] hover:bg-[#1A2740] border border-[#253554] text-xs font-mono text-gray-200 transition-colors shadow-sm"
-          title="Click to copy invitation details"
-        >
-          <span className="text-brand-steelLight">CODE:</span>
-          <span className="font-bold text-brand-gold tracking-wide">{meetingCode}</span>
-          <Copy className="w-3 h-3 text-gray-400" />
-        </button>
-
-        {/* Right: Layout Switcher + Fullscreen + Audio Toggle + Leave */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        {/* Right: Quick Controls (View Mode + Fullscreen + Code) */}
+        <div className="flex items-center gap-2">
           
-          {/* Assessor Voice Speech Toggle */}
+          {/* Meeting Code Badge */}
           <button
-            onClick={() => setVoiceAssessorEnabled(!voiceAssessorEnabled)}
-            className={`p-1.5 rounded-lg border text-xs transition-colors ${
-              voiceAssessorEnabled 
-                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300' 
-                : 'bg-[#121B2C] border-gray-700 text-gray-400'
-            }`}
-            title={voiceAssessorEnabled ? 'Assessor Voice Audio Active' : 'Assessor Voice Muted'}
+            onClick={() => setShowInviteModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#252525] hover:bg-[#303030] text-gray-300 hover:text-white text-xs font-mono transition-colors"
           >
-            {voiceAssessorEnabled ? <Volume2 className="w-4 h-4 text-emerald-400" /> : <VolumeX className="w-4 h-4" />}
+            <span className="text-gray-400 text-[11px]">ID:</span>
+            <span className="font-semibold text-brand-gold">{meetingCode}</span>
+            <Copy className="w-3 h-3 text-gray-400" />
           </button>
 
-          {/* Segmented Layout Switcher (Speaker vs Gallery) */}
-          <div className="bg-[#121B2C] p-0.5 rounded-lg border border-[#253554] flex items-center text-xs">
-            <button
-              onClick={() => setViewMode('speaker')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-all ${
-                viewMode === 'speaker'
-                  ? 'bg-brand-gold text-brand-dark font-bold shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Speaker</span>
-            </button>
-            <button
-              onClick={() => setViewMode('gallery')}
-              className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-all ${
-                viewMode === 'gallery'
-                  ? 'bg-brand-gold text-brand-dark font-bold shadow-sm'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Gallery</span>
-            </button>
-          </div>
+          {/* View Toggle (Speaker vs Gallery) */}
+          <button
+            onClick={() => setViewMode(viewMode === 'speaker' ? 'gallery' : 'speaker')}
+            className="px-2.5 py-1 rounded-md bg-[#252525] hover:bg-[#303030] text-gray-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors"
+          >
+            {viewMode === 'speaker' ? <LayoutGrid className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{viewMode === 'speaker' ? 'Gallery View' : 'Speaker View'}</span>
+          </button>
 
-          {/* Fullscreen Button */}
+          {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="p-1.5 rounded-lg bg-[#121B2C] hover:bg-[#1A2740] text-gray-300 hover:text-white border border-[#253554] transition-colors"
-            title={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+            className="p-1.5 rounded-md bg-[#252525] hover:bg-[#303030] text-gray-300 hover:text-white transition-colors"
+            title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
           >
-            {isFullscreen ? <Minimize className="w-4 h-4 text-brand-gold" /> : <Maximize className="w-4 h-4" />}
-          </button>
-
-          {/* Leave Session */}
-          <button
-            onClick={handleLeaveClass}
-            className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors shadow-md"
-          >
-            Leave
+            {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
           </button>
         </div>
       </header>
 
-      {/* ── 2. CENTRAL HIGH-DEFINITION VIDEO STAGE ── */}
-      <main className="flex-1 relative bg-[#05080E] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+      {/* ── 2. CENTRAL VIDEO STAGE + SLIDE DRAWER ── */}
+      <div className="flex-1 relative flex overflow-hidden">
         
-        {/* Floating Animated Reaction Particles */}
-        <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
-          {floatingReactions.map(r => (
-            <div
-              key={r.id}
-              style={{ left: `${r.left}%`, animationDelay: `${r.delay}s` }}
-              className="absolute bottom-16 text-3xl sm:text-4xl animate-float-up pointer-events-none filter drop-shadow-lg"
-            >
-              {r.emoji}
-            </div>
-          ))}
-        </div>
-
-        {/* Share Error Alert Banner */}
-        {shareError && (
-          <div className="absolute top-4 z-50 bg-red-950/90 border border-red-500 text-red-200 px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-2xl animate-fadeIn">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{shareError}</span>
-            <button onClick={() => setShareError(null)} className="ml-2 hover:text-white font-bold">×</button>
-          </div>
-        )}
-
-        {/* ── SCENARIO A: REAL SCREEN SHARING ACTIVE ── */}
-        {isSharingScreen ? (
-          <div className="relative w-full h-full max-w-7xl rounded-2xl overflow-hidden bg-black border-2 border-emerald-500/80 shadow-2xl flex flex-col">
-            
-            {/* Screen Share Status Bar */}
-            <div className="h-10 px-4 bg-emerald-950/90 border-b border-emerald-500/40 flex items-center justify-between text-xs text-emerald-200 shrink-0 z-10">
-              <div className="flex items-center gap-2 font-semibold">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>You are sharing your live screen / window / tab via native display capture</span>
-              </div>
-              <button
-                onClick={stopScreenShare}
-                className="px-3 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow"
+        {/* Main Video Viewport */}
+        <main className="flex-1 relative bg-black flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+          
+          {/* Floating Reaction Particles */}
+          <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
+            {floatingReactions.map(r => (
+              <div
+                key={r.id}
+                style={{ left: `${r.left}%`, animationDelay: `${r.delay}s` }}
+                className="absolute bottom-16 text-3xl sm:text-4xl animate-float-up pointer-events-none filter drop-shadow-lg"
               >
-                Stop Sharing
-              </button>
-            </div>
-
-            {/* Real Screen Video Canvas (Muted to ensure 100% Autoplay compliance) */}
-            <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden p-1 sm:p-2">
-              <video
-                ref={screenVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-contain rounded-lg bg-black"
-              />
-            </div>
-
-            {/* Corner PIP of Mentor while screen is shared */}
-            <div className="absolute bottom-4 right-4 w-44 sm:w-56 aspect-video rounded-xl overflow-hidden border-2 border-brand-gold/80 shadow-2xl bg-[#0B101D] z-20">
-              <img
-                src="/images/mentor-portrait.jpg"
-                alt="Lt. Vamshi E."
-                className="w-full h-full object-cover object-top"
-              />
-              <div className="absolute bottom-1 left-2 bg-black/85 px-2 py-0.5 rounded text-[10px] font-mono text-white flex items-center gap-1">
-                <span className={`w-1.5 h-1.5 rounded-full ${isMentorSpeaking ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`} />
-                <span>{mentor} (Assessor)</span>
+                {r.emoji}
               </div>
-            </div>
+            ))}
           </div>
-        ) : viewMode === 'speaker' ? (
-          /* ── SCENARIO B: SPEAKER VIEW (MENTOR SPOTLIGHT + REAL ASPIRANT WEBCAM PIP) ── */
-          <div className="relative w-full h-full max-w-6xl rounded-2xl overflow-hidden bg-[#0C121E] border border-[#1A2538] shadow-2xl flex items-center justify-center">
-            
-            {/* Mentor Spotlight Visual */}
-            <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-b from-[#111927] via-[#0C121E] to-[#070B12]">
-              <img
-                src="/images/mentor-portrait.jpg"
-                alt="Lt. Vamshi E."
-                className="w-full h-full object-cover md:object-contain object-top brightness-95 filter"
-              />
 
-              {/* Active Speaker Border Glow */}
-              <div className={`absolute inset-0 rounded-2xl pointer-events-none transition-all duration-300 ${
-                isMentorSpeaking ? 'border-4 border-emerald-500/70 shadow-[inset_0_0_40px_rgba(16,185,129,0.3)]' : 'border border-white/5'
-              }`} />
-
-              {/* Mentor Active Speaker Badge */}
-              <div className="absolute bottom-4 left-4 bg-[#0A0F1C]/90 backdrop-blur-md px-4 py-2.5 rounded-xl border border-brand-gold/40 shadow-2xl flex items-center gap-3">
-                <div className="relative">
-                  <span className={`w-3 h-3 rounded-full ${isMentorSpeaking ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'} inline-block absolute`} />
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block relative" />
+          {/* SCENARIO A: SCREEN SHARE ACTIVE */}
+          {isSharingScreen ? (
+            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#101010] border border-[#2D2D2D] shadow-2xl flex flex-col">
+              <div className="h-9 px-4 bg-[#1C1C1C] border-b border-[#2D2D2D] flex items-center justify-between text-xs text-emerald-400">
+                <div className="flex items-center gap-2 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>You are sharing your screen</span>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-heading font-bold text-sm text-white">{mentor}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold text-[10px] font-mono font-bold">
-                      AIR 34 · CDS 2 2019
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-300 font-mono">Assessor & Founder · 3 AFSB Recommended</p>
+                <button
+                  onClick={stopScreenShare}
+                  className="px-2.5 py-0.5 rounded bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors"
+                >
+                  Stop Sharing
+                </button>
+              </div>
+
+              <div className="flex-1 relative bg-black flex items-center justify-center p-1">
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              {/* PIP of Mentor during Screen Share */}
+              <div className="absolute bottom-4 right-4 w-44 sm:w-52 aspect-video rounded-xl overflow-hidden border-2 border-white/20 shadow-2xl bg-[#1A1A1A] z-20">
+                <img
+                  src="/images/mentor-portrait.jpg"
+                  alt="Lt. Vamshi E."
+                  className="w-full h-full object-cover object-top"
+                />
+                <div className="absolute bottom-1 left-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-medium text-white flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>{mentor}</span>
                 </div>
               </div>
             </div>
-
-            {/* Aspirant PIP with REAL WEBCAM (Top Right Corner) */}
-            <div className="absolute top-4 right-4 sm:top-6 sm:right-6 w-36 sm:w-56 aspect-[3/4] sm:aspect-video rounded-xl overflow-hidden bg-[#121B2C] border-2 border-brand-gold/70 shadow-2xl flex flex-col justify-end z-20">
+          ) : viewMode === 'speaker' ? (
+            /* SCENARIO B: SPEAKER VIEW (MENTOR MAIN + CANDIDATE PIP) */
+            <div className="relative w-full h-full rounded-2xl overflow-hidden bg-[#161616] border border-[#262626] shadow-2xl flex items-center justify-center">
               
-              {!isVideoOff ? (
-                /* Real Live Candidate Webcam Stream */
-                <div className="w-full h-full relative bg-black flex items-center justify-center">
-                  <video
-                    ref={userVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover transform -scale-x-100"
-                  />
-                  {activeReaction && (
-                    <div className="absolute top-2 right-2 text-2xl bg-black/70 backdrop-blur-sm rounded-full w-9 h-9 flex items-center justify-center border border-white/20 animate-bounce">
-                      {activeReaction}
-                    </div>
-                  )}
+              {/* Mentor Video Feed */}
+              <div className="relative w-full h-full flex items-center justify-center bg-[#141414]">
+                <img
+                  src="/images/mentor-portrait.jpg"
+                  alt="Lt. Vamshi E."
+                  className="w-full h-full object-cover sm:object-contain object-top"
+                />
+
+                {/* Mentor Nameplate */}
+                <div className="absolute bottom-4 left-4 bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-medium text-white flex items-center gap-2.5 shadow-xl">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-semibold">{mentor}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">
+                    Host · AIR 34
+                  </span>
                 </div>
-              ) : (
-                /* Avatar Fallback */
-                <div className="w-full h-full bg-[#0D1524] flex flex-col items-center justify-center relative">
-                  <div className="w-12 h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-md">
-                    AS
+              </div>
+
+              {/* Candidate PIP with REAL CAMERA FEED */}
+              <div className="absolute top-4 right-4 sm:top-6 sm:right-6 w-36 sm:w-56 aspect-[3/4] sm:aspect-video rounded-xl overflow-hidden bg-[#202020] border-2 border-[#383838] shadow-2xl flex flex-col justify-end z-20">
+                {!isVideoOff ? (
+                  <div className="w-full h-full relative bg-black flex items-center justify-center">
+                    <video
+                      ref={userVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
                   </div>
-                  <span className="text-[10px] text-gray-400 mt-1 font-mono">Camera Off</span>
-                  {activeReaction && (
-                    <div className="absolute top-2 right-2 text-2xl bg-black/70 rounded-full w-8 h-8 flex items-center justify-center">
-                      {activeReaction}
+                ) : (
+                  <div className="w-full h-full bg-[#1C1C1C] flex flex-col items-center justify-center text-gray-400">
+                    <div className="w-12 h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow">
+                      AS
                     </div>
-                  )}
-                </div>
-              )}
-
-              {/* Dynamic Sound-Wave Bar Visualizer & Nameplate */}
-              <div className="p-2 bg-[#0A0E1A]/95 backdrop-blur-md border-t border-white/10 flex items-center justify-between text-[11px] font-mono">
-                <div className="flex items-center gap-1.5 truncate">
-                  {handRaised && <span className="text-yellow-400">✋</span>}
-                  <span className="text-white font-semibold truncate">{candidateName} (You)</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  {!isMuted && audioLevel > 5 ? (
-                    <div className="flex items-end gap-0.5 h-3">
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(20, audioLevel)}%` }} />
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(45, audioLevel * 0.9)}%` }} />
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(15, audioLevel * 0.5)}%` }} />
-                    </div>
-                  ) : isMuted ? (
-                    <MicOff className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                  ) : (
-                    <Mic className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* ── SCENARIO C: GALLERY VIEW (2x2 BALANCED GRID) ── */
-          <div className="w-full h-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-1">
-            
-            {/* Tile 1: Lt. Vamshi E. */}
-            <div className="relative rounded-2xl overflow-hidden bg-[#0F1726] border-2 border-emerald-500/60 shadow-2xl flex items-center justify-center">
-              <img
-                src="/images/mentor-portrait.jpg"
-                alt="Lt. Vamshi E."
-                className="w-full h-full object-cover object-top brightness-95"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-              <div className="absolute bottom-3 left-3 bg-[#0A0E1A]/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-xs font-sans text-white flex items-center gap-2 border border-brand-gold/30">
-                <span className={`w-2.5 h-2.5 rounded-full ${isMentorSpeaking ? 'bg-emerald-400 animate-ping' : 'bg-emerald-400'}`} />
-                <span className="font-semibold">{mentor}</span>
-                <span className="text-[10px] text-brand-gold font-mono">(Host · AIR 34)</span>
-              </div>
-            </div>
-
-            {/* Tile 2: Arjun Sharma (Me) with REAL WEBCAM */}
-            <div className="relative rounded-2xl overflow-hidden bg-[#0F1726] border border-brand-gold/60 shadow-2xl flex flex-col justify-end">
-              {!isVideoOff ? (
-                <div className="w-full h-full relative bg-black flex items-center justify-center">
-                  <video
-                    ref={userGalleryVideoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover transform -scale-x-100"
-                  />
-                  {activeReaction && (
-                    <div className="absolute top-4 right-4 text-3xl bg-black/70 backdrop-blur-sm rounded-full w-12 h-12 flex items-center justify-center border border-white/20 animate-bounce">
-                      {activeReaction}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="w-full h-full bg-[#080D16] flex flex-col items-center justify-center text-gray-400">
-                  <div className="w-16 h-16 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xl shadow-xl mb-2">
-                    AS
+                    <span className="text-[10px] text-gray-500 mt-1 font-mono">Camera Off</span>
                   </div>
-                  <span className="text-xs text-gray-400 font-mono">Camera Off</span>
-                </div>
-              )}
+                )}
 
-              <div className="p-3 bg-[#0A0E1A]/90 backdrop-blur-md text-xs font-sans text-gray-200 flex items-center justify-between border-t border-white/10">
-                <span className="font-semibold flex items-center gap-1.5">
-                  {handRaised && <span className="text-yellow-400">✋</span>}
-                  {candidateName} (Chest 24 · You)
-                </span>
-                <div className="flex items-center gap-2">
-                  {!isMuted && audioLevel > 5 ? (
-                    <div className="flex items-end gap-0.5 h-3.5">
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(20, audioLevel)}%` }} />
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(45, audioLevel * 0.9)}%` }} />
-                      <span className="w-1 bg-emerald-400 rounded-full animate-pulse" style={{ height: `${Math.max(15, audioLevel * 0.5)}%` }} />
-                    </div>
-                  ) : isMuted ? (
-                    <MicOff className="w-4 h-4 text-red-500" />
-                  ) : (
-                    <Mic className="w-4 h-4 text-emerald-400" />
-                  )}
-                  {isVideoOff ? <VideoOff className="w-4 h-4 text-red-500" /> : <Video className="w-4 h-4 text-emerald-400" />}
-                </div>
-              </div>
-            </div>
-
-            {/* Tile 3: Priya Nair (Aspirant Peer) */}
-            <div className="relative rounded-2xl overflow-hidden bg-[#0F1726] border border-white/10 shadow-2xl flex flex-col justify-end">
-              <div className="w-full h-full bg-[#080D16] flex flex-col items-center justify-center text-gray-300">
-                <div className="w-16 h-16 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-xl shadow-xl mb-2">
-                  PN
-                </div>
-                <span className="text-xs text-gray-400 font-mono">Priya Nair · Chest 09</span>
-              </div>
-              <div className="p-3 bg-[#0A0E1A]/90 text-xs font-sans text-gray-200 flex items-center justify-between border-t border-white/10">
-                <span className="font-semibold">Priya Nair (Chest 09)</span>
-                <div className="flex items-center gap-2">
-                  <MicOff className="w-4 h-4 text-red-500" />
-                  <Video className="w-4 h-4 text-emerald-400" />
-                </div>
-              </div>
-            </div>
-
-            {/* Tile 4: Rohit Verma (Aspirant Peer) */}
-            <div className="relative rounded-2xl overflow-hidden bg-[#0F1726] border border-white/10 shadow-2xl flex flex-col justify-end">
-              <div className="w-full h-full bg-[#080D16] flex flex-col items-center justify-center text-gray-300">
-                <div className="w-16 h-16 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xl shadow-xl mb-2">
-                  RV
-                </div>
-                <span className="text-xs text-gray-400 font-mono">Rohit Verma · Chest 18</span>
-              </div>
-              <div className="p-3 bg-[#0A0E1A]/90 text-xs font-sans text-gray-200 flex items-center justify-between border-t border-white/10">
-                <span className="font-semibold">Rohit Verma (Chest 18)</span>
-                <div className="flex items-center gap-2">
-                  <MicOff className="w-4 h-4 text-red-500" />
-                  <VideoOff className="w-4 h-4 text-red-500" />
-                </div>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* ── 3. COLLAPSIBLE RIGHT-SIDE DRAWERS ── */}
-        
-        {/* DRAWER 1: IN-CALL CHAT & REAL-TIME ASSESSOR REPLIES */}
-        {activeSideDrawer === 'chat' && (
-          <div className="absolute inset-y-0 right-0 w-full sm:w-96 bg-[#0B101C] border-l border-[#1A2538] flex flex-col z-30 shadow-2xl animate-fadeIn">
-            <div className="h-12 px-4 border-b border-[#1A2538] flex items-center justify-between">
-              <span className="font-heading font-bold text-sm text-brand-gold flex items-center gap-2">
-                <MessageSquare className="w-4 h-4" /> Live Mentorship Chat
-              </span>
-              <button onClick={() => setActiveSideDrawer('none')} className="text-gray-400 hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
-              {chatMessages.map((m, idx) => (
-                <div key={idx} className={`p-3 rounded-xl border ${m.isMe ? 'bg-[#152033] border-[#253554] ml-6' : 'bg-[#0E1524] border-[#1A2538] mr-6'}`}>
-                  <div className="flex items-center justify-between text-[10px] text-brand-steelLight font-mono mb-1">
-                    <span className="font-bold text-brand-gold">{m.sender} {m.chest && `(${m.chest})`}</span>
-                    <span>{m.time}</span>
-                  </div>
-                  <p className="leading-relaxed text-gray-200">{m.text}</p>
-                </div>
-              ))}
-            </div>
-
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-[#1A2538] flex gap-2 bg-[#080D16]">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask Lt. Vamshi E. (Assessor)..."
-                className="flex-1 bg-[#121B2C] border border-[#202E48] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
-              />
-              <button type="submit" className="px-3.5 py-2 rounded-lg bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs transition-colors shrink-0">
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* DRAWER 2: ATTENDEES DIRECTORY */}
-        {activeSideDrawer === 'participants' && (
-          <div className="absolute inset-y-0 right-0 w-full sm:w-96 bg-[#0B101C] border-l border-[#1A2538] flex flex-col z-30 shadow-2xl animate-fadeIn">
-            <div className="h-12 px-4 border-b border-[#1A2538] flex items-center justify-between">
-              <span className="font-heading font-bold text-sm text-brand-gold flex items-center gap-2">
-                <Users className="w-4 h-4" /> Studio Attendees (4)
-              </span>
-              <button onClick={() => setActiveSideDrawer('none')} className="text-gray-400 hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3 text-xs flex-1 overflow-y-auto">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#0E1524] border border-brand-gold/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-brand-gold text-brand-dark font-bold flex items-center justify-center text-xs">
-                    LV
+                {/* Candidate Nameplate on PIP */}
+                <div className="p-2 bg-black/85 backdrop-blur-md border-t border-white/10 flex items-center justify-between text-[11px]">
+                  <div className="flex items-center gap-1.5 truncate">
+                    {handRaised && <span className="text-yellow-400">✋</span>}
+                    <span className="font-medium truncate">{candidateName} (You)</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-white">{mentor}</p>
-                    <p className="text-[10px] text-brand-steelLight font-mono">Assessor · AIR 34 (Host)</p>
+                    {!isMuted && audioLevel > 5 ? (
+                      <div className="flex items-end gap-0.5 h-3">
+                        <span className="w-1 bg-emerald-400 rounded-full" style={{ height: `${Math.max(20, audioLevel)}%` }} />
+                        <span className="w-1 bg-emerald-400 rounded-full" style={{ height: `${Math.max(40, audioLevel * 0.8)}%` }} />
+                      </div>
+                    ) : isMuted ? (
+                      <MicOff className="w-3.5 h-3.5 text-red-500" />
+                    ) : (
+                      <Mic className="w-3.5 h-3.5 text-emerald-400" />
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <Mic className="w-4 h-4" />
-                  <Video className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#152033] border border-brand-gold/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
-                    AS
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white">{candidateName} (You)</p>
-                    <p className="text-[10px] text-gray-400 font-mono">Candidate · Chest 24</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {handRaised && <span className="text-yellow-400 text-xs">✋</span>}
-                  {isMuted ? <MicOff className="w-4 h-4 text-red-500" /> : <Mic className="w-4 h-4 text-emerald-400" />}
-                  {isVideoOff ? <VideoOff className="w-4 h-4 text-red-500" /> : <Video className="w-4 h-4 text-emerald-400" />}
+            </div>
+          ) : (
+            /* SCENARIO C: GALLERY VIEW (CLEAN 2x2 ZOOM-STYLE GRID) */
+            <div className="w-full h-full max-w-6xl grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-1">
+              
+              {/* Tile 1: Mentor */}
+              <div className="relative rounded-2xl overflow-hidden bg-[#181818] border border-[#2E2E2E] shadow-2xl flex items-center justify-center">
+                <img
+                  src="/images/mentor-portrait.jpg"
+                  alt="Lt. Vamshi E."
+                  className="w-full h-full object-cover object-top"
+                />
+                <div className="absolute bottom-3 left-3 bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-medium text-white flex items-center gap-2 border border-white/10">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>{mentor} (Host · AIR 34)</span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#0E1524] border border-[#1A2538]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-xs">
+              {/* Tile 2: Arjun Sharma (Me) with Real Camera */}
+              <div className="relative rounded-2xl overflow-hidden bg-[#181818] border-2 border-brand-gold/60 shadow-2xl flex flex-col justify-end">
+                {!isVideoOff ? (
+                  <div className="w-full h-full relative bg-black flex items-center justify-center">
+                    <video
+                      ref={userGalleryVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-[#1A1A1A] flex flex-col items-center justify-center text-gray-400">
+                    <div className="w-16 h-16 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xl shadow-lg mb-2">
+                      AS
+                    </div>
+                    <span className="text-xs text-gray-500 font-mono">Camera Off</span>
+                  </div>
+                )}
+                <div className="p-2.5 bg-black/85 text-xs font-medium text-white flex items-center justify-between border-t border-white/10">
+                  <span className="flex items-center gap-1.5">
+                    {handRaised && <span className="text-yellow-400">✋</span>}
+                    {candidateName} (You · Chest 24)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isMuted ? <MicOff className="w-3.5 h-3.5 text-red-500" /> : <Mic className="w-3.5 h-3.5 text-emerald-400" />}
+                    {isVideoOff ? <VideoOff className="w-3.5 h-3.5 text-red-500" /> : <Video className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tile 3: Priya Nair */}
+              <div className="relative rounded-2xl overflow-hidden bg-[#181818] border border-[#2E2E2E] shadow-2xl flex flex-col justify-end">
+                <div className="w-full h-full bg-[#1A1A1A] flex flex-col items-center justify-center text-gray-400">
+                  <div className="w-16 h-16 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-xl shadow-lg mb-2">
                     PN
                   </div>
-                  <div>
-                    <p className="font-semibold text-white">Priya Nair</p>
-                    <p className="text-[10px] text-gray-400 font-mono">Candidate · Chest 09</p>
-                  </div>
+                  <span className="text-xs text-gray-500 font-mono">Priya Nair</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <MicOff className="w-4 h-4 text-red-500" />
-                  <Video className="w-4 h-4 text-emerald-400" />
+                <div className="p-2.5 bg-black/85 text-xs font-medium text-white flex items-center justify-between border-t border-white/10">
+                  <span>Priya Nair (Chest 09)</span>
+                  <div className="flex items-center gap-2">
+                    <MicOff className="w-3.5 h-3.5 text-red-500" />
+                    <Video className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#0E1524] border border-[#1A2538]">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xs">
+              {/* Tile 4: Rohit Verma */}
+              <div className="relative rounded-2xl overflow-hidden bg-[#181818] border border-[#2E2E2E] shadow-2xl flex flex-col justify-end">
+                <div className="w-full h-full bg-[#1A1A1A] flex flex-col items-center justify-center text-gray-400">
+                  <div className="w-16 h-16 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xl shadow-lg mb-2">
                     RV
                   </div>
-                  <div>
-                    <p className="font-semibold text-white">Rohit Verma</p>
-                    <p className="text-[10px] text-gray-400 font-mono">Candidate · Chest 18</p>
-                  </div>
+                  <span className="text-xs text-gray-500 font-mono">Rohit Verma</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <MicOff className="w-4 h-4 text-red-500" />
-                  <VideoOff className="w-4 h-4 text-red-500" />
+                <div className="p-2.5 bg-black/85 text-xs font-medium text-white flex items-center justify-between border-t border-white/10">
+                  <span>Rohit Verma (Chest 18)</span>
+                  <div className="flex items-center gap-2">
+                    <MicOff className="w-3.5 h-3.5 text-red-500" />
+                    <VideoOff className="w-3.5 h-3.5 text-red-500" />
+                  </div>
                 </div>
               </div>
 
-              <button
-                onClick={() => {
-                  setActiveSideDrawer('none');
-                  setShowInviteModal(true);
-                }}
-                className="w-full mt-4 py-2.5 rounded-xl bg-brand-gold/15 hover:bg-brand-gold/25 border border-brand-gold text-brand-gold text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
-              >
-                <LinkIcon className="w-3.5 h-3.5" /> Invite Candidates via Link
-              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* DRAWER 3: TACTICAL SSB ASSESSMENT SUITE (TAT, WAT, PIQ) */}
-        {activeSideDrawer === 'drills' && (
-          <div className="absolute inset-y-0 right-0 w-full sm:w-[440px] bg-[#0B101C] border-l border-[#1A2538] flex flex-col z-30 shadow-2xl animate-fadeIn">
-            <div className="h-12 px-4 border-b border-[#1A2538] flex items-center justify-between">
-              <span className="font-heading font-bold text-sm text-brand-gold flex items-center gap-2">
-                <Target className="w-4 h-4 text-brand-gold" /> Tactical Assessment Suite
-              </span>
-              <button onClick={() => setActiveSideDrawer('none')} className="text-gray-400 hover:text-white p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-3 p-2 bg-[#080D16] border-b border-[#1A2538] text-xs font-mono">
-              <button
-                onClick={() => setActiveDrillTab('tat')}
-                className={`py-1.5 rounded-lg font-semibold transition-all ${
-                  activeDrillTab === 'tat' ? 'bg-brand-gold text-brand-dark shadow' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                TAT Drill
-              </button>
-              <button
-                onClick={() => setActiveDrillTab('wat')}
-                className={`py-1.5 rounded-lg font-semibold transition-all ${
-                  activeDrillTab === 'wat' ? 'bg-brand-gold text-brand-dark shadow' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                WAT Drill
-              </button>
-              <button
-                onClick={() => setActiveDrillTab('piq')}
-                className={`py-1.5 rounded-lg font-semibold transition-all ${
-                  activeDrillTab === 'piq' ? 'bg-brand-gold text-brand-dark shadow' : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                PIQ Audit
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-sans">
-              {activeDrillTab === 'tat' && (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-[#121B2C] border border-brand-gold/30 flex justify-between items-center">
-                    <div>
-                      <span className="text-[10px] text-brand-steelLight font-mono uppercase">Phase Status</span>
-                      <p className="font-bold text-white text-sm">
-                        {tatPhase === 'observe' ? '30s Picture Observation' : '4-Minute Story Formulation'}
-                      </p>
-                    </div>
-                    <div className="text-right font-mono">
-                      <span className="text-lg font-bold text-brand-gold">{tatTimer}s</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-gray-300 font-semibold block">Candidate Story Formulation (Chest 24):</label>
-                    <textarea
-                      rows={7}
-                      value={candidateTatStory}
-                      onChange={(e) => setCandidateTatStory(e.target.value)}
-                      placeholder="Identify main hero, past situation leading to crisis, concrete action taken, and positive outcome..."
-                      className="w-full bg-[#0E1524] border border-[#1E2B42] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
-                    />
-                    <div className="flex justify-between text-[10px] font-mono text-gray-400">
-                      <span>Words: {candidateTatStory.trim() ? candidateTatStory.trim().split(/\s+/).length : 0}</span>
-                      <span>Target: ~100–120 words</span>
-                    </div>
-                  </div>
-
+          {/* Reactions Menu Popover */}
+          {showReactionsMenu && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#202020] border border-[#3A3A3A] rounded-2xl p-3 shadow-2xl z-40 animate-fadeIn">
+              <div className="flex items-center gap-2 mb-2">
+                {['👏', '👍', '❤️', '😂', '😮', '🎉'].map(emoji => (
                   <button
-                    onClick={() => {
-                      setChatMessages(prev => [
-                        ...prev,
-                        {
-                          sender: candidateName,
-                          text: `[TAT Story Submission]: ${candidateTatStory}`,
-                          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                          isMe: true,
-                          chest: 'Chest 24'
-                        }
-                      ]);
-                      setCandidateTatStory('');
-                      setActiveSideDrawer('chat');
-                    }}
-                    disabled={!candidateTatStory.trim()}
-                    className="w-full py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs disabled:opacity-50 transition-colors shadow"
+                    key={emoji}
+                    onClick={() => triggerReaction(emoji)}
+                    className="w-10 h-10 flex items-center justify-center text-2xl rounded-xl hover:bg-white/10 active:scale-90 transition-transform"
                   >
-                    Submit Story to Assessor
+                    {emoji}
                   </button>
-                </div>
-              )}
-
-              {activeDrillTab === 'wat' && (
-                <div className="space-y-4">
-                  <div className="p-5 rounded-2xl bg-[#121B2C] border-2 border-brand-gold/60 text-center space-y-3 shadow-xl">
-                    <span className="text-[10px] font-mono text-gray-400 uppercase">Flash Word ({watIndex + 1}/7)</span>
-                    <h3 className="text-3xl font-black font-mono tracking-wider text-brand-gold">{watList[watIndex]}</h3>
-                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                      <div className="bg-brand-gold h-full transition-all duration-1000" style={{ width: `${(watTimer / 15) * 100}%` }} />
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-400">{watTimer}s remaining</span>
-                  </div>
-
-                  <form onSubmit={handleSaveWatSentence} className="space-y-2">
-                    <label className="text-gray-300 font-semibold block">Spontaneous Association:</label>
-                    <input
-                      value={candidateWatSentence}
-                      onChange={(e) => setCandidateWatSentence(e.target.value)}
-                      placeholder="Type active, authentic reaction sentence..."
-                      className="w-full bg-[#0E1524] border border-[#1E2B42] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!candidateWatSentence.trim()}
-                      className="w-full py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs disabled:opacity-50 transition-colors shadow"
-                    >
-                      Save Sentence & Next Word
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {activeDrillTab === 'piq' && (
-                <div className="space-y-3 font-mono text-[11px]">
-                  <div className="p-3 rounded-xl bg-[#121B2C] border border-[#202E48] space-y-2">
-                    <span className="text-xs font-bold text-brand-gold block font-sans">Aspirant Profile Summary</span>
-                    <div className="flex justify-between py-1 border-b border-white/5">
-                      <span className="text-gray-400">Name:</span>
-                      <span className="text-white font-semibold">{candidateName}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-white/5">
-                      <span className="text-gray-400">Chest No:</span>
-                      <span className="text-brand-gold font-bold">24</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-white/5">
-                      <span className="text-gray-400">Entry:</span>
-                      <span className="text-white">CDS 2 2026 (IMA Preference)</span>
-                    </div>
-                    <div className="flex justify-between py-1">
-                      <span className="text-gray-400">Diagnostic Focus:</span>
-                      <span className="text-emerald-400 font-semibold">Self-Awareness & OLQ 4</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+                ))}
+              </div>
+              <button
+                onClick={handleToggleHandRaise}
+                className={`w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  handRaised ? 'bg-yellow-400 text-black' : 'bg-[#2E2E2E] hover:bg-[#3E3E3E] text-white'
+                }`}
+              >
+                <Hand className={`w-4 h-4 ${handRaised ? 'fill-black' : ''}`} />
+                <span>{handRaised ? 'Lower Hand' : 'Raise Hand (✋)'}</span>
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── REACTIONS DOCK ── */}
-        {showReactionsTray && (
-          <div className="absolute bottom-20 right-4 sm:right-32 w-72 bg-[#0E1524] border border-[#253554] rounded-2xl p-4 shadow-2xl z-40 text-white animate-fadeIn">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2">
-              <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Smile className="w-3.5 h-3.5 text-yellow-400" />
-                Military Reactions
-              </span>
-              <button onClick={() => setShowReactionsTray(false)} className="text-gray-400 hover:text-white p-0.5">
+        </main>
+
+        {/* ── 3. CLEAN SLIDE-OVER SIDEBAR (CHAT / ATTENDEES / DRILLS) ── */}
+        {activeTab !== 'none' && (
+          <aside className="w-full sm:w-80 md:w-96 bg-[#181818] border-l border-[#282828] flex flex-col z-30 shadow-2xl">
+            
+            {/* Header Tabs */}
+            <div className="h-12 px-3 border-b border-[#282828] flex items-center justify-between">
+              <div className="flex items-center gap-1 text-xs font-medium">
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    activeTab === 'chat' ? 'bg-[#2C2C2C] text-white font-semibold' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setActiveTab('participants')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    activeTab === 'participants' ? 'bg-[#2C2C2C] text-white font-semibold' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Attendees (4)
+                </button>
+                <button
+                  onClick={() => setActiveTab('drills')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    activeTab === 'drills' ? 'bg-brand-gold text-brand-dark font-bold' : 'text-brand-gold hover:text-white'
+                  }`}
+                >
+                  SSB Drills
+                </button>
+              </div>
+
+              <button onClick={() => setActiveTab('none')} className="text-gray-400 hover:text-white p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-6 gap-2 mb-3">
-              {['👏', '👍', '❤️', '😂', '😮', '🎉'].map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => {
-                    triggerReaction(emoji);
-                    setShowReactionsTray(false);
-                  }}
-                  className="aspect-square flex items-center justify-center text-2xl rounded-xl hover:bg-white/10 active:scale-90 transition-transform"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            {/* TAB 1: CHAT */}
+            {activeTab === 'chat' && (
+              <div className="flex-1 flex flex-col justify-between overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+                  {chatMessages.map((m, i) => (
+                    <div key={i} className={`p-2.5 rounded-xl border ${m.isMe ? 'bg-[#232323] border-[#383838] ml-4' : 'bg-[#1C1C1C] border-[#2A2A2A] mr-4'}`}>
+                      <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+                        <span className="font-semibold text-white">{m.sender} {m.tag && `(${m.tag})`}</span>
+                        <span>{m.time}</span>
+                      </div>
+                      <p className="text-gray-200 leading-relaxed">{m.text}</p>
+                    </div>
+                  ))}
+                </div>
 
-            <button
-              onClick={() => {
-                handleToggleHandRaise();
-                setShowReactionsTray(false);
-              }}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow ${
-                handRaised
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-[#182338] hover:bg-[#202E48] text-white border border-[#2D3E5D]'
-              }`}
-            >
-              <Hand className={`w-4 h-4 ${handRaised ? 'fill-black' : ''}`} />
-              <span>{handRaised ? 'Lower Hand (Chest 24)' : 'Raise Hand (Chest 24)'}</span>
-            </button>
-          </div>
+                <form onSubmit={handleSendMessage} className="p-3 border-t border-[#282828] flex gap-2 bg-[#141414]">
+                  <input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Type message to class..."
+                    className="flex-1 bg-[#222] border border-[#333] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                  />
+                  <button type="submit" className="px-3.5 py-2 rounded-lg bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs shrink-0">
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 2: PARTICIPANTS */}
+            {activeTab === 'participants' && (
+              <div className="flex-1 overflow-y-auto p-4 space-y-2.5 text-xs">
+                {/* Mentor */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-brand-gold text-brand-dark font-bold flex items-center justify-center text-xs">
+                      LV
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">{mentor}</p>
+                      <p className="text-[10px] text-gray-400">Host, Assessor · AIR 34</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <Mic className="w-4 h-4" />
+                    <Video className="w-4 h-4" />
+                  </div>
+                </div>
+
+                {/* You */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                      AS
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">{candidateName} (You)</p>
+                      <p className="text-[10px] text-gray-400">Candidate · Chest 24</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {handRaised && <span className="text-yellow-400 text-xs">✋</span>}
+                    {isMuted ? <MicOff className="w-4 h-4 text-red-500" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                    {isVideoOff ? <VideoOff className="w-4 h-4 text-red-500" /> : <Video className="w-4 h-4 text-emerald-400" />}
+                  </div>
+                </div>
+
+                {/* Priya */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-xs">
+                      PN
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">Priya Nair</p>
+                      <p className="text-[10px] text-gray-400">Candidate · Chest 09</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MicOff className="w-4 h-4 text-red-500" />
+                    <Video className="w-4 h-4 text-emerald-400" />
+                  </div>
+                </div>
+
+                {/* Rohit */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xs">
+                      RV
+                    </div>
+                    <div>
+                      <p className="font-semibold text-white">Rohit Verma</p>
+                      <p className="text-[10px] text-gray-400">Candidate · Chest 18</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MicOff className="w-4 h-4 text-red-500" />
+                    <VideoOff className="w-4 h-4 text-red-500" />
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="w-full mt-4 py-2 rounded-xl bg-[#2A2A2A] hover:bg-[#353535] text-brand-gold text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-brand-gold/30"
+                >
+                  <LinkIcon className="w-3.5 h-3.5" /> Invite Candidates via Link
+                </button>
+              </div>
+            )}
+
+            {/* TAB 3: SSB DRILLS */}
+            {activeTab === 'drills' && (
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="grid grid-cols-3 p-2 bg-[#141414] border-b border-[#282828] text-xs">
+                  <button
+                    onClick={() => setDrillTab('tat')}
+                    className={`py-1 rounded-md font-semibold ${drillTab === 'tat' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    TAT Drill
+                  </button>
+                  <button
+                    onClick={() => setDrillTab('wat')}
+                    className={`py-1 rounded-md font-semibold ${drillTab === 'wat' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    WAT Drill
+                  </button>
+                  <button
+                    onClick={() => setDrillTab('piq')}
+                    className={`py-1 rounded-md font-semibold ${drillTab === 'piq' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
+                  >
+                    PIQ Audit
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+                  {drillTab === 'tat' && (
+                    <div className="space-y-3">
+                      <div className="p-3 rounded-xl bg-[#202020] border border-[#333] flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] text-gray-400 uppercase font-mono">Phase</span>
+                          <p className="font-bold text-white">
+                            {tatPhase === 'observe' ? '30s Picture Observation' : '4-Min Story Writing'}
+                          </p>
+                        </div>
+                        <span className="text-base font-bold text-brand-gold font-mono">{tatCountdown}s</span>
+                      </div>
+
+                      <div>
+                        <label className="text-gray-300 font-medium block mb-1">Your Story Formulation:</label>
+                        <textarea
+                          rows={6}
+                          value={candidateStory}
+                          onChange={(e) => setCandidateStory(e.target.value)}
+                          placeholder="Type main hero, background action, crisis resolution, and outcome..."
+                          className="w-full bg-[#1F1F1F] border border-[#333] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
+                          <span>Words: {candidateStory.trim() ? candidateStory.trim().split(/\s+/).length : 0}</span>
+                          <span>Target: 100-120</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setChatMessages(prev => [
+                            ...prev,
+                            {
+                              sender: candidateName,
+                              text: `[TAT Story Submission]: ${candidateStory}`,
+                              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                              isMe: true,
+                              tag: 'Chest 24'
+                            }
+                          ]);
+                          setCandidateStory('');
+                          setActiveTab('chat');
+                        }}
+                        disabled={!candidateStory.trim()}
+                        className="w-full py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs disabled:opacity-40 transition-colors shadow"
+                      >
+                        Submit to Assessor
+                      </button>
+                    </div>
+                  )}
+
+                  {drillTab === 'wat' && (
+                    <div className="space-y-3">
+                      <div className="p-4 rounded-xl bg-[#202020] border border-brand-gold/40 text-center space-y-2">
+                        <span className="text-[10px] font-mono text-gray-400">Word ({watIndex + 1}/7)</span>
+                        <h4 className="text-2xl font-black font-mono tracking-widest text-brand-gold">{watWords[watIndex]}</h4>
+                        <span className="text-xs font-mono text-emerald-400">{watTimer}s</span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <input
+                          value={watInput}
+                          onChange={(e) => setWatInput(e.target.value)}
+                          placeholder="Type active OLQ association sentence..."
+                          className="w-full bg-[#1F1F1F] border border-[#333] rounded-xl px-3 py-2.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                        />
+                        <button
+                          onClick={() => {
+                            if (!watInput.trim()) return;
+                            setWatHistory(prev => [...prev, { word: watWords[watIndex], sentence: watInput.trim() }]);
+                            setWatInput('');
+                            setWatIndex(idx => (idx + 1) % watWords.length);
+                            setWatTimer(15);
+                          }}
+                          disabled={!watInput.trim()}
+                          className="w-full py-2 rounded-xl bg-brand-gold text-brand-dark font-bold text-xs disabled:opacity-40"
+                        >
+                          Next Word
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {drillTab === 'piq' && (
+                    <div className="p-3 rounded-xl bg-[#202020] border border-white/5 space-y-2 text-xs font-mono">
+                      <span className="text-brand-gold font-bold block font-sans">Aspirant Dossier (Chest 24)</span>
+                      <div className="flex justify-between py-1 border-b border-white/5">
+                        <span className="text-gray-400">Name:</span>
+                        <span className="text-white font-medium">{candidateName}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-white/5">
+                        <span className="text-gray-400">Entry:</span>
+                        <span className="text-white">CDS 2 2026 (IMA Preference)</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-400">Interview Focus:</span>
+                        <span className="text-emerald-400">Self-Transformation & OLQs</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          </aside>
         )}
 
-      </main>
+      </div>
 
-      {/* ── 4. MODERN ARRANGEABLE BOTTOM CONTROL DECK ── */}
-      <footer className="h-16 px-3 sm:px-8 bg-[#0B101C] border-t border-[#1A2538] flex items-center justify-between shrink-0 z-30">
+      {/* ── 4. MODERN ZOOM-STYLE FLOATING BOTTOM CONTROLS DOCK (72px) ── */}
+      <footer className="h-16 px-4 bg-[#181818] border-t border-[#282828] flex items-center justify-between shrink-0 z-30">
         
-        {/* ISLAND 1: AUDIO / VIDEO CONTROLS */}
-        <div className="flex items-center gap-2 sm:gap-3 bg-[#111A2C] px-2.5 py-1.5 rounded-2xl border border-[#1E2B42]">
+        {/* Left: Meeting Name / Status (Desktop) */}
+        <div className="hidden md:flex items-center gap-2 text-xs text-gray-400">
+          <ShieldCheck className="w-4 h-4 text-emerald-500" />
+          <span>Encrypted Mentorship Session</span>
+        </div>
+
+        {/* Center: Main Primary Controls (Zoom Style) */}
+        <div className="flex items-center gap-2 sm:gap-3 mx-auto">
           
-          {/* Mute / Unmute */}
+          {/* Mute Button */}
           <button
             onClick={toggleMute}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
               isMuted
-                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30'
+                : 'bg-[#252525] hover:bg-[#323232] text-gray-200'
             }`}
+            title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
           >
-            {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isMuted ? 'Unmute' : 'Mute'}</span>
+            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            <span className="text-[9px] mt-0.5">{isMuted ? 'Unmute' : 'Mute'}</span>
           </button>
 
-          {/* Video Start / Stop */}
+          {/* Video Button */}
           <button
             onClick={toggleVideo}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
               isVideoOff
-                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30'
+                ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30'
+                : 'bg-[#252525] hover:bg-[#323232] text-gray-200'
             }`}
+            title={isVideoOff ? 'Start Camera' : 'Stop Camera'}
           >
-            {isVideoOff ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isVideoOff ? 'Start Video' : 'Stop Video'}</span>
+            {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+            <span className="text-[9px] mt-0.5">{isVideoOff ? 'Start' : 'Stop'}</span>
           </button>
-        </div>
 
-        {/* ISLAND 2: REAL SCREEN SHARE & RECORD & DRILLS */}
-        <div className="flex items-center gap-2 sm:gap-3 bg-[#111A2C] px-2.5 py-1.5 rounded-2xl border border-[#1E2B42]">
-          
-          {/* Real Native Screen Share (Direct 1-Click Launch) */}
+          {/* Share Screen Button (Direct Native Share) */}
           <button
             onClick={() => {
-              if (isSharingScreen) {
-                stopScreenShare();
-              } else {
-                startRealScreenShare();
-              }
+              if (isSharingScreen) stopScreenShare();
+              else startScreenShare();
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
               isSharingScreen
-                ? 'bg-emerald-600 text-white shadow-lg animate-pulse'
-                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30'
+                ? 'bg-emerald-600 text-white animate-pulse'
+                : 'bg-[#252525] hover:bg-[#323232] text-emerald-400'
             }`}
+            title="Share Screen"
           >
-            <Share2 className="w-4 h-4 text-emerald-400" />
-            <span className="hidden sm:inline">{isSharingScreen ? 'Stop Screen Share' : 'Share Screen'}</span>
+            <Share2 className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">{isSharingScreen ? 'Sharing' : 'Share'}</span>
           </button>
 
-          {/* Real Video Recording */}
+          {/* Record Button */}
           <button
             onClick={toggleRecording}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
               isRecording
-                ? 'bg-red-600 text-white shadow-lg animate-pulse'
-                : 'text-gray-200 hover:bg-[#1A263D]'
+                ? 'bg-red-600 text-white animate-pulse'
+                : 'bg-[#252525] hover:bg-[#323232] text-red-400'
             }`}
+            title="Record Live Class"
           >
-            <Disc className={`w-4 h-4 ${isRecording ? 'animate-spin' : 'text-red-400'}`} />
-            <span className="hidden sm:inline">{isRecording ? 'Stop Rec' : 'Record'}</span>
+            <Disc className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">{isRecording ? 'Stop' : 'Record'}</span>
           </button>
 
-          {/* Tactical Drills Drawer */}
+          {/* Reactions Button */}
           <button
-            onClick={() => {
-              setActiveSideDrawer(activeSideDrawer === 'drills' ? 'none' : 'drills');
-              setShowReactionsTray(false);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              activeSideDrawer === 'drills'
-                ? 'bg-brand-gold text-brand-dark shadow'
-                : 'text-brand-gold hover:bg-brand-gold/15'
+            onClick={() => setShowReactionsMenu(!showReactionsMenu)}
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
+              showReactionsMenu || handRaised ? 'bg-yellow-400/20 text-yellow-400' : 'bg-[#252525] hover:bg-[#323232] text-gray-200'
             }`}
+            title="Reactions"
           >
-            <Target className="w-4 h-4" />
-            <span className="hidden sm:inline">SSB Drills</span>
+            <Smile className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">React</span>
+          </button>
+
+          {/* Chat Toggle Button */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'chat' ? 'none' : 'chat')}
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
+              activeTab === 'chat' ? 'bg-[#353535] text-brand-gold' : 'bg-[#252525] hover:bg-[#323232] text-gray-200'
+            }`}
+            title="Class Chat"
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">Chat</span>
+          </button>
+
+          {/* Attendees Toggle Button */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'participants' ? 'none' : 'participants')}
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
+              activeTab === 'participants' ? 'bg-[#353535] text-brand-gold' : 'bg-[#252525] hover:bg-[#323232] text-gray-200'
+            }`}
+            title="Participants"
+          >
+            <Users className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">People</span>
+          </button>
+
+          {/* SSB Drills Toggle Button */}
+          <button
+            onClick={() => setActiveTab(activeTab === 'drills' ? 'none' : 'drills')}
+            className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
+              activeTab === 'drills' ? 'bg-brand-gold text-brand-dark font-bold' : 'bg-[#252525] hover:bg-[#323232] text-brand-gold'
+            }`}
+            title="SSB Drills"
+          >
+            <Target className="w-5 h-5" />
+            <span className="text-[9px] mt-0.5">Drills</span>
           </button>
         </div>
 
-        {/* ISLAND 3: INTERACTION & PARTICIPANTS */}
-        <div className="flex items-center gap-2 sm:gap-3 bg-[#111A2C] px-2.5 py-1.5 rounded-2xl border border-[#1E2B42]">
-          
+        {/* Right: End Call Button */}
+        <div>
           <button
-            onClick={() => {
-              setShowReactionsTray(!showReactionsTray);
-              if (activeSideDrawer !== 'none') setActiveSideDrawer('none');
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              showReactionsTray ? 'text-yellow-400' : 'text-gray-300 hover:text-white'
-            }`}
+            onClick={handleLeave}
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-xs transition-colors shadow flex items-center gap-1.5"
           >
-            <Smile className="w-4 h-4" />
-            <span className="hidden sm:inline">Reactions</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveSideDrawer(activeSideDrawer === 'chat' ? 'none' : 'chat');
-              setShowReactionsTray(false);
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeSideDrawer === 'chat' ? 'text-brand-gold bg-brand-gold/10' : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span className="hidden sm:inline">Chat</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setActiveSideDrawer(activeSideDrawer === 'participants' ? 'none' : 'participants');
-              setShowReactionsTray(false);
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-              activeSideDrawer === 'participants' ? 'text-brand-gold bg-brand-gold/10' : 'text-gray-300 hover:text-white'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">(4)</span>
+            <PhoneOff className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">End Class</span>
           </button>
         </div>
 
       </footer>
 
-      {/* ── 5. INVITE ASPIRANTS MODAL ── */}
+      {/* ── 5. INVITE & SHARE MODAL ── */}
       {showInviteModal && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowInviteModal(false)}
         >
           <div
-            className="bg-[#0F1726] border border-[#253554] max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl relative"
+            className="bg-[#202020] border border-[#3A3A3A] max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#1E2B42] pb-3">
-              <div className="flex items-center gap-2">
-                <LinkIcon className="w-5 h-5 text-brand-gold" />
-                <h3 className="font-heading font-bold text-base text-white">Invite Aspirants to Live Studio</h3>
-              </div>
+            <div className="flex items-center justify-between border-b border-[#303030] pb-3">
+              <h3 className="font-bold text-sm text-white">Invite Aspirants to Live Studio</h3>
               <button onClick={() => setShowInviteModal(false)} className="text-gray-400 hover:text-white">
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              <div className="p-3.5 rounded-xl bg-[#090E18] border border-[#1A2538] space-y-1">
-                <p className="text-[10px] font-mono uppercase text-brand-gold font-semibold">Active Session Topic</p>
-                <p className="text-sm font-semibold text-white">{topic}</p>
-                <p className="text-xs text-brand-steelLight font-mono">Assessor: {mentor} · AIR 34</p>
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-xl bg-[#181818] border border-[#2D2D2D]">
+                <p className="text-[10px] text-brand-gold font-mono uppercase">Topic</p>
+                <p className="font-semibold text-white mt-0.5">{topic}</p>
+                <p className="text-gray-400 mt-0.5 font-mono">Mentor: {mentor} · AIR 34</p>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#121B2C] border border-[#1E2B42]">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[#282828] border border-[#383838]">
                 <div>
-                  <p className="text-[10px] text-gray-400 font-mono uppercase">Meeting ID / Code</p>
-                  <p className="text-base font-mono font-bold text-brand-gold tracking-wider">{meetingCode}</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-mono">Meeting ID</p>
+                  <p className="text-base font-bold text-brand-gold font-mono">{meetingCode}</p>
                 </div>
                 <button
-                  onClick={() => copyToClipboard(meetingCode, 'code')}
-                  className="px-3 py-1.5 rounded-lg bg-[#1A263D] hover:bg-[#23334F] text-xs font-semibold text-gray-200 flex items-center gap-1.5 transition-colors"
+                  onClick={() => {
+                    navigator.clipboard.writeText(meetingCode);
+                    setCopiedKey('code');
+                    setTimeout(() => setCopiedKey(null), 2000);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#333] hover:bg-[#444] text-xs font-semibold text-gray-200 flex items-center gap-1.5"
                 >
                   {copiedKey === 'code' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedKey === 'code' ? 'Copied' : 'Copy'}</span>
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#121B2C] border border-[#1E2B42]">
-                <div>
-                  <p className="text-[10px] text-gray-400 font-mono uppercase">Security Passcode</p>
-                  <p className="text-sm font-mono font-bold text-white tracking-wider">{passcode}</p>
-                </div>
-                <button
-                  onClick={() => copyToClipboard(passcode, 'passcode')}
-                  className="px-3 py-1.5 rounded-lg bg-[#1A263D] hover:bg-[#23334F] text-xs font-semibold text-gray-200 flex items-center gap-1.5 transition-colors"
-                >
-                  {copiedKey === 'passcode' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedKey === 'passcode' ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-
               <div className="space-y-1">
-                <p className="text-[10px] text-gray-400 font-mono uppercase">Direct Join Link</p>
+                <p className="text-[10px] text-gray-400 uppercase font-mono">Direct Join Link</p>
                 <div className="flex items-center gap-2">
                   <input
                     readOnly
                     value={shareUrl}
-                    className="flex-1 bg-[#090E18] border border-[#1E2B42] rounded-lg px-3 py-2 text-xs font-mono text-gray-300 truncate focus:outline-none"
+                    className="flex-1 bg-[#181818] border border-[#303030] rounded-lg px-3 py-2 text-xs font-mono text-gray-300 truncate focus:outline-none"
                   />
                   <button
-                    onClick={() => copyToClipboard(shareUrl, 'url')}
-                    className="px-3 py-2 rounded-lg bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs flex items-center gap-1.5 transition-all shadow"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                      setCopiedKey('url');
+                      setTimeout(() => setCopiedKey(null), 2000);
+                    }}
+                    className="px-3 py-2 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs"
                   >
-                    {copiedKey === 'url' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'url' ? 'Copied' : 'Copy'}</span>
+                    {copiedKey === 'url' ? 'Copied' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -1495,14 +1156,14 @@ export const ZoomMeetingPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 6. RECORDING SAVED & DOWNLOAD MODAL ── */}
+      {/* ── 6. RECORDING DOWNLOAD CONFIRMATION MODAL ── */}
       {recordingSavedModal && savedRecordSummary && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setRecordingSavedModal(false)}
         >
           <div
-            className="bg-[#0F1726] border border-emerald-500/60 max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl relative text-center"
+            className="bg-[#202020] border border-emerald-500/60 max-w-md w-full rounded-2xl p-6 space-y-4 shadow-2xl relative text-center"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
@@ -1510,23 +1171,19 @@ export const ZoomMeetingPage: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="font-heading font-bold text-lg text-white">Live Class Recording Saved!</h3>
+              <h3 className="font-bold text-base text-white">Live Recording Complete</h3>
               <p className="text-xs text-gray-400 mt-1">
-                Your video session was recorded live, downloaded to your computer, and archived in your Student Dossier.
+                Your video session was saved to your computer and archived in your Student Dossier.
               </p>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-[#090E18] border border-[#1E2B42] text-left text-xs font-mono space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Class Topic:</span>
-                <span className="text-white font-semibold truncate max-w-[200px]">{topic}</span>
-              </div>
+            <div className="p-3 rounded-xl bg-[#181818] border border-[#303030] text-left text-xs font-mono space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-400">Duration:</span>
                 <span className="text-brand-gold font-bold">{savedRecordSummary.duration}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Archived At:</span>
+                <span className="text-gray-400">Time:</span>
                 <span className="text-gray-300">{savedRecordSummary.timestamp}</span>
               </div>
             </div>
@@ -1534,7 +1191,7 @@ export const ZoomMeetingPage: React.FC = () => {
             <div className="flex items-center gap-3 pt-2">
               <button
                 onClick={() => setRecordingSavedModal(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#1A263D] hover:bg-[#23334F] text-gray-200 text-xs font-semibold"
+                className="flex-1 py-2.5 rounded-xl bg-[#303030] hover:bg-[#3E3E3E] text-gray-200 text-xs font-semibold"
               >
                 Continue Class
               </button>
@@ -1543,9 +1200,9 @@ export const ZoomMeetingPage: React.FC = () => {
                   setRecordingSavedModal(false);
                   navigate('/student/sessions');
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark text-xs font-bold shadow"
+                className="flex-1 py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark text-xs font-bold"
               >
-                View in Dossier
+                View Dossier Archive
               </button>
             </div>
           </div>
