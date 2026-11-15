@@ -43,6 +43,7 @@ export const ZoomMeetingPage: React.FC = () => {
   const [showReactionsMenu, setShowReactionsMenu] = useState(false);
   const [showMobileMoreSheet, setShowMobileMoreSheet] = useState(false);
   const [showShareOptionsModal, setShowShareOptionsModal] = useState(false);
+  const [showMobileScreenNoticeModal, setShowMobileScreenNoticeModal] = useState(false);
 
   // Media Streams
   const userMediaStreamRef = useRef<MediaStream | null>(null);
@@ -54,7 +55,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
   // Screen Share & Presentation States
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  const [screenShareType, setScreenShareType] = useState<'native' | 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq'>('native');
+  const [screenShareType, setScreenShareType] = useState<'native' | 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq' | 'camera'>('native');
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
@@ -175,7 +176,8 @@ export const ZoomMeetingPage: React.FC = () => {
   }, [viewMode, isVideoOff]);
 
   useEffect(() => {
-    if (screenVideoRef.current && screenStream && screenShareType === 'native') {
+    if (screenVideoRef.current && screenStream && (screenShareType === 'native' || screenShareType === 'camera')) {
+      screenVideoRef.current.muted = true;
       screenVideoRef.current.srcObject = screenStream;
       screenVideoRef.current.play().catch(() => {});
     }
@@ -234,42 +236,101 @@ export const ZoomMeetingPage: React.FC = () => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
 
-    // If native display media is supported (Desktop Chrome/Edge/Firefox or Android Chrome)
-    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        setScreenStream(stream);
-        setScreenShareType('native');
-        setIsSharingScreen(true);
-
-        const track = stream.getVideoTracks()[0];
-        if (track) {
-          track.onended = () => stopScreenShare();
-        }
-
-        setTimeout(() => {
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = stream;
-            screenVideoRef.current.play().catch(() => {});
-          }
-        }, 150);
-        return;
-      } catch (err: any) {
-        if (err.name === 'NotAllowedError') {
-          // User clicked Cancel in browser prompt
-          return;
-        }
-        console.warn('Native screen share error, opening presentation whiteboard:', err);
-      }
+    // Check if user is on mobile/tablet browser
+    const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobileDevice) {
+      setShowMobileScreenNoticeModal(true);
+      return;
     }
 
-    // On iOS Safari / unsupported mobile devices, open the Whiteboard presentation seamlessly
-    startPresentation('whiteboard');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Screen sharing is not supported by your current browser. Please open on Desktop Google Chrome, Microsoft Edge, or Firefox.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+          displaySurface: 'monitor',
+        },
+        audio: false
+      });
+
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+      }
+
+      setScreenStream(stream);
+      setScreenShareType('native');
+      setIsSharingScreen(true);
+
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => stopScreenShare();
+      }
+
+      setTimeout(() => {
+        if (screenVideoRef.current) {
+          screenVideoRef.current.muted = true;
+          screenVideoRef.current.srcObject = stream;
+          screenVideoRef.current.play().catch(e => console.warn('Video play notice:', e));
+        }
+      }, 100);
+    } catch (err: any) {
+      console.warn('Native screen share error:', err);
+      if (err.name === 'NotAllowedError') {
+        // User clicked cancel in browser screen selection dialog
+        return;
+      }
+      alert('Could not start screen sharing: ' + (err.message || 'Please check browser screen permissions.'));
+    }
+  };
+
+  const startDocumentCamera = async () => {
+    setShowShareOptionsModal(false);
+    setShowMobileMoreSheet(false);
+    setShowMobileScreenNoticeModal(false);
+
+    try {
+      if (screenStream) {
+        screenStream.getTracks().forEach(t => t.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+
+      setScreenStream(stream);
+      setScreenShareType('camera');
+      setIsSharingScreen(true);
+
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => stopScreenShare();
+      }
+
+      setTimeout(() => {
+        if (screenVideoRef.current) {
+          screenVideoRef.current.muted = true;
+          screenVideoRef.current.srcObject = stream;
+          screenVideoRef.current.play().catch(() => {});
+        }
+      }, 100);
+    } catch (err: any) {
+      console.warn('Document camera error, falling back to whiteboard:', err);
+      startPresentation('whiteboard');
+    }
   };
 
   const startPresentation = (type: 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq') => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
+    setShowMobileScreenNoticeModal(false);
     if (screenStream) {
       screenStream.getTracks().forEach(t => t.stop());
       setScreenStream(null);
@@ -617,7 +678,8 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="flex items-center gap-1.5 font-medium truncate">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   <span className="truncate">
-                    {screenShareType === 'native' && 'Live Computer / Window Broadcast'}
+                    {screenShareType === 'native' && 'Live Computer Screen Broadcast (Full Screen)'}
+                    {screenShareType === 'camera' && 'Live Document & Desk Camera Presenter'}
                     {screenShareType === 'whiteboard' && 'Interactive Tactical Whiteboard Canvas'}
                     {screenShareType === 'photo' && 'Candidate Document & Story Presentation'}
                     {screenShareType === 'tat' && 'TAT Psychological Slide Deck'}
@@ -636,12 +698,13 @@ export const ZoomMeetingPage: React.FC = () => {
               {/* Share Content Viewport */}
               <div className="flex-1 relative bg-black flex items-center justify-center p-1 overflow-hidden">
                 
-                {/* 1. Native Display Media Stream */}
-                {screenShareType === 'native' && (
+                {/* 1. Native Display Media Stream or Live Document Camera */}
+                {(screenShareType === 'native' || screenShareType === 'camera') && (
                   <video
                     ref={(el) => {
                       screenVideoRef.current = el;
                       if (el && screenStream) {
+                        el.muted = true;
                         el.srcObject = screenStream;
                         el.play().catch(() => {});
                       }
@@ -1403,7 +1466,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
             <div className="space-y-2 text-xs">
               
-              {/* Option 1: Live Screen Capture (Supported on Desktop & Android Chrome) */}
+              {/* Option 1: Live Screen Capture (PC / Laptop Full Screen) */}
               <button
                 onClick={startNativeScreenShare}
                 className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
@@ -1411,13 +1474,33 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                   <Monitor className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="font-semibold text-white">Live Computer / Device Screen</h4>
-                  <p className="text-[10px] text-gray-400">Broadcast your real screen, window, or browser tab</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">Live Computer / PC Screen</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">PC / Mac</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Broadcast entire desktop, window, or Chrome tab</p>
                 </div>
               </button>
 
-              {/* Option 2: Live Finger/Mouse Whiteboard (Works 100% on all mobile & desktop!) */}
+              {/* Option 2: Live Document & Desk Camera (Mobile / Tablet) */}
+              <button
+                onClick={startDocumentCamera}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-amber-500/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">Live Document & Desk Camera</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono">Phone / Cam</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Point camera at handwritten story, notes, or monitor</p>
+                </div>
+              </button>
+
+              {/* Option 3: Live Finger/Mouse Whiteboard (Works 100% on all mobile & desktop!) */}
               <button
                 onClick={() => startPresentation('whiteboard')}
                 className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
@@ -1425,13 +1508,16 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
                   <PenTool className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="font-semibold text-white">Live Interactive Whiteboard</h4>
-                  <p className="text-[10px] text-gray-400">Sketch tactical diagrams & write notes live with finger or mouse</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">Live Interactive Whiteboard</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-gold/20 text-brand-gold font-mono">Touch & Pen</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Sketch tactical diagrams & write notes live with finger</p>
                 </div>
               </button>
 
-              {/* Option 3: Upload Photo of Handwritten TAT Story / PIQ (Works 100% on phone gallery!) */}
+              {/* Option 4: Upload Photo of Handwritten TAT Story / PIQ (Works 100% on phone gallery!) */}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
@@ -1439,13 +1525,16 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
                   <Image className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="font-semibold text-white">Present Photo / Handwritten Story</h4>
-                  <p className="text-[10px] text-gray-400">Select a story picture or PIQ document from your phone</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">Present Photo / Screenshot</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono">Gallery</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Select a story picture, screenshot, or PIQ from device</p>
                 </div>
               </button>
 
-              {/* Option 4: TAT Deck */}
+              {/* Option 5: TAT Deck */}
               <button
                 onClick={() => startPresentation('tat')}
                 className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-purple-500/30 text-left flex items-center gap-3 transition-colors"
@@ -1453,13 +1542,92 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="font-semibold text-white">TAT Psychological Picture Deck</h4>
-                  <p className="text-[10px] text-gray-400">Broadcast official 30s stimulus image</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-white">TAT Psychological Picture Deck</h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-mono">Stimulus</span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate">Official 30s observation image on stage</p>
                 </div>
               </button>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5B. MOBILE SCREEN RESTRICTION CLARIFICATION MODAL ── */}
+      {showMobileScreenNoticeModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setShowMobileScreenNoticeModal(false)}
+        >
+          <div
+            className="bg-[#1A1A1A] border border-[#303030] max-w-sm w-full rounded-2xl p-5 space-y-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
+              <div className="flex items-center gap-2 text-amber-400">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <h3 className="font-bold text-sm text-white">Mobile OS Screen Sharing</h3>
+              </div>
+              <button onClick={() => setShowMobileScreenNoticeModal(false)} className="text-gray-400 hover:text-white p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Mobile operating systems (<strong>iOS Safari</strong> & <strong>Android Web</strong>) do not allow websites to record external apps or your phone's home screen for security and privacy.
+            </p>
+
+            <div className="p-3 bg-[#121212] rounded-xl border border-white/5 space-y-1 text-xs">
+              <p className="text-brand-gold font-semibold flex items-center gap-1.5">
+                <Monitor className="w-3.5 h-3.5" /> For Full Computer Screen Share:
+              </p>
+              <p className="text-gray-400 text-[11px] leading-relaxed">
+                Open this meeting link on any <strong>PC, Mac, or Laptop browser</strong> (Chrome, Edge, Firefox) to broadcast your desktop.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-1 text-xs">
+              <p className="text-gray-400 font-semibold text-[11px] uppercase tracking-wider font-mono">
+                Present From Your Phone Now:
+              </p>
+              
+              <button
+                onClick={startDocumentCamera}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-2 transition-colors shadow"
+              >
+                <Camera className="w-4 h-4" /> Start Live Document / Desk Camera
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowMobileScreenNoticeModal(false);
+                  startPresentation('whiteboard');
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#282828] hover:bg-[#333] text-brand-gold font-semibold flex items-center justify-center gap-2 border border-brand-gold/30 transition-colors"
+              >
+                <PenTool className="w-4 h-4" /> Open Interactive Whiteboard
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowMobileScreenNoticeModal(false);
+                  fileInputRef.current?.click();
+                }}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#282828] hover:bg-[#333] text-blue-400 font-semibold flex items-center justify-center gap-2 border border-blue-500/30 transition-colors"
+              >
+                <Image className="w-4 h-4" /> Upload Photo from Gallery
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowMobileScreenNoticeModal(false)}
+              className="w-full py-2 rounded-xl text-gray-400 hover:text-white text-xs border border-white/10"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}
