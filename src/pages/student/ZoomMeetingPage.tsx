@@ -56,6 +56,7 @@ export const ZoomMeetingPage: React.FC = () => {
   const [screenShareType, setScreenShareType] = useState<'native' | 'tat' | 'wat' | 'piq'>('native');
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   // Recording
   const [isRecording, setIsRecording] = useState(false);
@@ -212,32 +213,38 @@ export const ZoomMeetingPage: React.FC = () => {
   const startNativeScreenShare = async () => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
+    setShareError(null);
+
+    // Check if the current browser/OS supports getDisplayMedia
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setShareError('Your mobile browser or OS (such as iPhone iOS Safari) restricts native screen recording for security. To present on this phone, use the TAT/WAT deck, or open SSB BRO on Desktop Chrome.');
+      return;
+    }
+
     try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        setScreenStream(stream);
-        setScreenShareType('native');
-        setIsSharingScreen(true);
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      setScreenStream(stream);
+      setScreenShareType('native');
+      setIsSharingScreen(true);
 
-        const track = stream.getVideoTracks()[0];
-        if (track) {
-          track.onended = () => stopScreenShare();
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        track.onended = () => stopScreenShare();
+      }
+
+      setTimeout(() => {
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = stream;
+          screenVideoRef.current.play().catch(() => {});
         }
-
-        setTimeout(() => {
-          if (screenVideoRef.current) {
-            screenVideoRef.current.srcObject = stream;
-            screenVideoRef.current.play().catch(() => {});
-          }
-        }, 150);
-      } else {
-        // Fallback to interactive slide deck if browser blocks getDisplayMedia on mobile
-        startDeckPresentation('tat');
-      }
+      }, 150);
     } catch (err: any) {
-      if (err.name !== 'NotAllowedError') {
-        startDeckPresentation('tat');
+      if (err.name === 'NotAllowedError') {
+        // User clicked cancel in the browser popup - do NOT switch to TAT!
+        return;
       }
+      console.warn('Native screen share error:', err);
+      setShareError(`Screen share failed: ${err.message || 'Permission denied by device'}`);
     }
   };
 
@@ -478,6 +485,20 @@ export const ZoomMeetingPage: React.FC = () => {
         {/* Main Video Viewport (Edge-to-Edge) */}
         <main className="flex-1 relative bg-black flex items-center justify-center p-1 sm:p-3 overflow-hidden">
           
+          {/* Share Error Alert Banner */}
+          {shareError && (
+            <div className="absolute top-4 left-4 right-4 sm:left-auto sm:right-4 max-w-md z-50 bg-[#1E1212] border border-red-500/80 text-red-200 p-3 rounded-xl text-xs flex items-start gap-2.5 shadow-2xl animate-fadeIn">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-white">Screen Share Notice</p>
+                <p className="text-[11px] text-gray-300 mt-0.5 leading-relaxed">{shareError}</p>
+              </div>
+              <button onClick={() => setShareError(null)} className="text-gray-400 hover:text-white p-0.5">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Floating Reaction Particles */}
           <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
             {floatingReactions.map(r => (
@@ -518,11 +539,17 @@ export const ZoomMeetingPage: React.FC = () => {
               <div className="flex-1 relative bg-black flex items-center justify-center p-1 overflow-hidden">
                 {screenShareType === 'native' ? (
                   <video
-                    ref={screenVideoRef}
+                    ref={(el) => {
+                      screenVideoRef.current = el;
+                      if (el && screenStream) {
+                        el.srcObject = screenStream;
+                        el.play().catch(() => {});
+                      }
+                    }}
                     autoPlay
                     playsInline
                     muted
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain bg-black"
                   />
                 ) : screenShareType === 'tat' ? (
                   <div className="w-full max-w-2xl h-full flex flex-col items-center justify-center text-center p-3">
