@@ -8,8 +8,9 @@ import {
   Play, Copy, Link as LinkIcon, Download, Clock, 
   FileText, Sparkles, ExternalLink, HelpCircle,
   MoreHorizontal, PhoneOff, AlertCircle, Camera, 
-  Target, Award, Radio
+  Target, Award, Radio, PenTool, Image, Trash2
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { saveSessionRecording } from '../../lib/supabase';
 
 interface FloatingReaction {
@@ -51,12 +52,19 @@ export const ZoomMeetingPage: React.FC = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
-  // Screen Share (Real Browser or Interactive Presentations)
+  // Screen Share & Presentation States
   const [isSharingScreen, setIsSharingScreen] = useState(false);
-  const [screenShareType, setScreenShareType] = useState<'native' | 'tat' | 'wat' | 'piq'>('native');
+  const [screenShareType, setScreenShareType] = useState<'native' | 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq'>('native');
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
-  const [shareError, setShareError] = useState<string | null>(null);
+  const [uploadedPhotoUrl, setUploadedPhotoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Interactive Whiteboard Canvas
+  const whiteboardCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [brushColor, setBrushColor] = useState('#E6B980'); // Brand gold
+  const [brushSize, setBrushSize] = useState(3);
 
   // Recording
   const [isRecording, setIsRecording] = useState(false);
@@ -70,19 +78,19 @@ export const ZoomMeetingPage: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Floating Reactions
+  // Floating Reactions & Tile Badge
+  const [activeReactionBadge, setActiveReactionBadge] = useState<string | null>(null);
+  const reactionBadgeTimerRef = useRef<number | null>(null);
   const [floatingReactions, setFloatingReactions] = useState<FloatingReaction[]>([]);
   const reactionCounterRef = useRef(0);
 
   // Drills States
   const [drillTab, setDrillTab] = useState<'tat' | 'wat' | 'piq'>('tat');
   const [tatCountdown, setTatCountdown] = useState(30);
-  const [tatPhase, setTatPhase] = useState<'observe' | 'write'>('observe');
   const [candidateStory, setCandidateStory] = useState('');
   const [watIndex, setWatIndex] = useState(0);
   const [watTimer, setWatTimer] = useState(15);
   const [watInput, setWatInput] = useState('');
-  const [watHistory, setWatHistory] = useState<Array<{ word: string; sentence: string }>>([]);
 
   const watWords = ['LEADERSHIP', 'OBSTACLE', 'COURAGE', 'INITIATIVE', 'INTEGRITY', 'SACRIFICE', 'RESPONSIBILITY'];
 
@@ -140,7 +148,7 @@ export const ZoomMeetingPage: React.FC = () => {
           } catch {}
         }
       } catch (err) {
-        console.warn('Camera/mic access not granted:', err);
+        console.warn('Camera/mic access notice:', err);
       }
     };
 
@@ -172,6 +180,18 @@ export const ZoomMeetingPage: React.FC = () => {
       screenVideoRef.current.play().catch(() => {});
     }
   }, [screenStream, isSharingScreen, screenShareType]);
+
+  // Whiteboard Canvas Init
+  useEffect(() => {
+    if (isSharingScreen && screenShareType === 'whiteboard' && whiteboardCanvasRef.current) {
+      const canvas = whiteboardCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#141414';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, [isSharingScreen, screenShareType]);
 
   // Hardware toggles
   const toggleMute = () => {
@@ -208,47 +228,46 @@ export const ZoomMeetingPage: React.FC = () => {
   };
 
   // ──────────────────────────────────────────────────────────
-  // 2. SCREEN SHARE CONTROLS (NATIVE & INTERACTIVE DECKS)
+  // 2. SCREEN SHARING & PRESENTATION SUITE (MOBILE & DESKTOP)
   // ──────────────────────────────────────────────────────────
   const startNativeScreenShare = async () => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
-    setShareError(null);
 
-    // Check if the current browser/OS supports getDisplayMedia
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      setShareError('Your mobile browser or OS (such as iPhone iOS Safari) restricts native screen recording for security. To present on this phone, use the TAT/WAT deck, or open SSB BRO on Desktop Chrome.');
-      return;
-    }
+    // If native display media is supported (Desktop Chrome/Edge/Firefox or Android Chrome)
+    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        setScreenStream(stream);
+        setScreenShareType('native');
+        setIsSharingScreen(true);
 
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      setScreenStream(stream);
-      setScreenShareType('native');
-      setIsSharingScreen(true);
-
-      const track = stream.getVideoTracks()[0];
-      if (track) {
-        track.onended = () => stopScreenShare();
-      }
-
-      setTimeout(() => {
-        if (screenVideoRef.current) {
-          screenVideoRef.current.srcObject = stream;
-          screenVideoRef.current.play().catch(() => {});
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          track.onended = () => stopScreenShare();
         }
-      }, 150);
-    } catch (err: any) {
-      if (err.name === 'NotAllowedError') {
-        // User clicked cancel in the browser popup - do NOT switch to TAT!
+
+        setTimeout(() => {
+          if (screenVideoRef.current) {
+            screenVideoRef.current.srcObject = stream;
+            screenVideoRef.current.play().catch(() => {});
+          }
+        }, 150);
         return;
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError') {
+          // User clicked Cancel in browser prompt
+          return;
+        }
+        console.warn('Native screen share error, opening presentation whiteboard:', err);
       }
-      console.warn('Native screen share error:', err);
-      setShareError(`Screen share failed: ${err.message || 'Permission denied by device'}`);
     }
+
+    // On iOS Safari / unsupported mobile devices, open the Whiteboard presentation seamlessly
+    startPresentation('whiteboard');
   };
 
-  const startDeckPresentation = (type: 'tat' | 'wat' | 'piq') => {
+  const startPresentation = (type: 'whiteboard' | 'photo' | 'tat' | 'wat' | 'piq') => {
     setShowShareOptionsModal(false);
     setShowMobileMoreSheet(false);
     if (screenStream) {
@@ -267,8 +286,137 @@ export const ZoomMeetingPage: React.FC = () => {
     setIsSharingScreen(false);
   };
 
+  // File Upload for Photo Presentation
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setUploadedPhotoUrl(url);
+      startPresentation('photo');
+    }
+  };
+
+  // Whiteboard Drawing Handlers (Touch & Mouse)
+  const startDrawingAction = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    setIsDrawing(true);
+    drawAction(e);
+  };
+
+  const stopDrawingAction = () => {
+    setIsDrawing(false);
+    const canvas = whiteboardCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.beginPath();
+    }
+  };
+
+  const drawAction = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = whiteboardCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    let clientX = 0;
+    let clientY = 0;
+
+    if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else if ('clientX' in e) {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = brushColor;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const clearWhiteboard = () => {
+    const canvas = whiteboardCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#141414';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  };
+
   // ──────────────────────────────────────────────────────────
-  // 3. RECORDING
+  // 3. FLUID REACTIONS & CELEBRATION EFFECTS
+  // ──────────────────────────────────────────────────────────
+  const triggerReaction = (emoji: string) => {
+    setShowReactionsMenu(false);
+    setShowMobileMoreSheet(false);
+
+    // 1. Show spring badge on candidate PIP tile
+    setActiveReactionBadge(emoji);
+    if (reactionBadgeTimerRef.current) clearTimeout(reactionBadgeTimerRef.current);
+    reactionBadgeTimerRef.current = window.setTimeout(() => setActiveReactionBadge(null), 3000);
+
+    // 2. Multiple smooth floating physics particles
+    const newItems: FloatingReaction[] = [
+      { id: ++reactionCounterRef.current, emoji, left: 35 + Math.random() * 20, delay: 0 },
+      { id: ++reactionCounterRef.current, emoji, left: 45 + Math.random() * 25, delay: 0.12 },
+      { id: ++reactionCounterRef.current, emoji, left: 55 + Math.random() * 20, delay: 0.25 },
+      { id: ++reactionCounterRef.current, emoji, left: 40 + Math.random() * 30, delay: 0.38 }
+    ];
+    setFloatingReactions(prev => [...prev, ...newItems]);
+    setTimeout(() => {
+      setFloatingReactions(prev => prev.filter(r => !newItems.some(i => i.id === r.id)));
+    }, 2800);
+
+    // 3. If celebration emoji 🎉, trigger confetti
+    if (emoji === '🎉') {
+      try {
+        confetti({
+          particleCount: 50,
+          spread: 70,
+          origin: { y: 0.8 },
+          colors: ['#E6B980', '#10B981', '#3B82F6', '#EF4444', '#F59E0B']
+        });
+      } catch {}
+    }
+  };
+
+  const handleToggleHandRaise = () => {
+    setShowReactionsMenu(false);
+    setShowMobileMoreSheet(false);
+    const next = !handRaised;
+    setHandRaised(next);
+    if (next) {
+      triggerReaction('✋');
+      setTimeout(() => {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            sender: mentor,
+            text: `Chest 24 (${candidateName}), unmuting approved. Please proceed with your deduction.`,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isMe: false,
+            tag: 'Host'
+          }
+        ]);
+      }, 1000);
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────
+  // 4. RECORDING
   // ──────────────────────────────────────────────────────────
   const toggleRecording = async () => {
     setShowMobileMoreSheet(false);
@@ -349,43 +497,6 @@ export const ZoomMeetingPage: React.FC = () => {
     return () => clearInterval(t);
   }, [isRecording]);
 
-  // Reactions
-  const triggerReaction = (emoji: string) => {
-    setShowReactionsMenu(false);
-    setShowMobileMoreSheet(false);
-    const newItems: FloatingReaction[] = [
-      { id: ++reactionCounterRef.current, emoji, left: 45 + Math.random() * 20, delay: 0 },
-      { id: ++reactionCounterRef.current, emoji, left: 40 + Math.random() * 30, delay: 0.15 },
-      { id: ++reactionCounterRef.current, emoji, left: 50 + Math.random() * 20, delay: 0.3 }
-    ];
-    setFloatingReactions(prev => [...prev, ...newItems]);
-    setTimeout(() => {
-      setFloatingReactions(prev => prev.filter(r => !newItems.some(i => i.id === r.id)));
-    }, 2800);
-  };
-
-  const handleToggleHandRaise = () => {
-    setShowReactionsMenu(false);
-    setShowMobileMoreSheet(false);
-    const next = !handRaised;
-    setHandRaised(next);
-    if (next) {
-      triggerReaction('✋');
-      setTimeout(() => {
-        setChatMessages(prev => [
-          ...prev,
-          {
-            sender: mentor,
-            text: `Chest 24 (${candidateName}), unmuting approved. Please state your deduction.`,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isMe: false,
-            tag: 'Host'
-          }
-        ]);
-      }, 1000);
-    }
-  };
-
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -411,12 +522,19 @@ export const ZoomMeetingPage: React.FC = () => {
   const shareUrl = `${window.location.origin}/student/live-meeting?code=${meetingCode.replace(/\s+/g, '')}&passcode=${passcode}&topic=${encodeURIComponent(topic)}`;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-[#0F0F0F] text-white flex flex-col justify-between overflow-hidden select-none font-sans">
+    <div className="fixed inset-0 z-[100] bg-[#0E0E0E] text-white flex flex-col justify-between overflow-hidden select-none font-sans">
+      
+      {/* Hidden file input for photo/document presentation */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={handlePhotoUpload}
+      />
 
-      {/* ── 1. RESPONSIVE ZOOM-STYLE TOP NAVIGATION (44px) ── */}
-      <header className="h-11 px-3 sm:px-4 bg-[#181818] border-b border-[#262626] flex items-center justify-between shrink-0 z-30">
-        
-        {/* Left: Live Indicator & Meeting ID Pill */}
+      {/* ── 1. TOP HEADER (44px) ── */}
+      <header className="h-11 px-3 sm:px-4 bg-[#161616] border-b border-[#242424] flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -427,7 +545,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#242424] hover:bg-[#303030] text-gray-300 text-xs font-mono transition-colors"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#222] hover:bg-[#2D2D2D] text-gray-300 text-xs font-mono transition-colors"
           >
             <span className="text-gray-400 text-[10px]">ID:</span>
             <span className="font-semibold text-brand-gold text-xs">{meetingCode}</span>
@@ -442,89 +560,69 @@ export const ZoomMeetingPage: React.FC = () => {
           )}
         </div>
 
-        {/* Center: Topic (Desktop) */}
         <span className="text-xs text-gray-400 hidden lg:inline truncate max-w-xs">
           {topic}
         </span>
 
-        {/* Right: View Mode Toggle & End Call Button */}
         <div className="flex items-center gap-2">
-          
-          {/* View Toggle */}
           <button
             onClick={() => setViewMode(viewMode === 'speaker' ? 'gallery' : 'speaker')}
-            className="px-2 py-1 rounded-md bg-[#242424] hover:bg-[#303030] text-gray-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
-            title="Toggle Speaker / Gallery View"
+            className="px-2 py-1 rounded-md bg-[#222] hover:bg-[#2D2D2D] text-gray-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
           >
             {viewMode === 'speaker' ? <LayoutGrid className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}
             <span className="hidden md:inline">{viewMode === 'speaker' ? 'Gallery' : 'Speaker'}</span>
           </button>
 
-          {/* Fullscreen (Desktop) */}
           <button
             onClick={toggleFullscreen}
-            className="hidden sm:flex p-1.5 rounded-md bg-[#242424] hover:bg-[#303030] text-gray-300 transition-colors"
-            title="Fullscreen"
+            className="hidden sm:flex p-1.5 rounded-md bg-[#222] hover:bg-[#2D2D2D] text-gray-300"
           >
             {isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
           </button>
 
-          {/* Red End Call Button (Always accessible at top right on Mobile & Desktop) */}
           <button
             onClick={handleLeave}
-            className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-sm flex items-center gap-1"
+            className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-colors shadow-sm"
           >
-            <span>End</span>
+            End
           </button>
         </div>
       </header>
 
-      {/* ── 2. CENTRAL VIDEO STAGE + MOBILE/DESKTOP SLIDE DRAWER ── */}
+      {/* ── 2. CENTRAL VIDEO STAGE + DRAWERS ── */}
       <div className="flex-1 relative flex overflow-hidden">
         
-        {/* Main Video Viewport (Edge-to-Edge) */}
+        {/* Main Stage Viewport */}
         <main className="flex-1 relative bg-black flex items-center justify-center p-1 sm:p-3 overflow-hidden">
           
-          {/* Share Error Alert Banner */}
-          {shareError && (
-            <div className="absolute top-4 left-4 right-4 sm:left-auto sm:right-4 max-w-md z-50 bg-[#1E1212] border border-red-500/80 text-red-200 p-3 rounded-xl text-xs flex items-start gap-2.5 shadow-2xl animate-fadeIn">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold text-white">Screen Share Notice</p>
-                <p className="text-[11px] text-gray-300 mt-0.5 leading-relaxed">{shareError}</p>
-              </div>
-              <button onClick={() => setShareError(null)} className="text-gray-400 hover:text-white p-0.5">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Floating Reaction Particles */}
+          {/* Smooth Floating Reaction Particles */}
           <div className="absolute inset-0 pointer-events-none z-40 overflow-hidden">
             {floatingReactions.map(r => (
               <div
                 key={r.id}
                 style={{ left: `${r.left}%`, animationDelay: `${r.delay}s` }}
-                className="absolute bottom-16 text-3xl sm:text-4xl animate-float-up pointer-events-none filter drop-shadow-lg"
+                className="absolute bottom-16 text-3xl sm:text-5xl animate-float-reaction pointer-events-none filter drop-shadow-2xl"
               >
                 {r.emoji}
               </div>
             ))}
           </div>
 
-          {/* ── A: ACTIVE SCREEN SHARING VIEW (MOBILE & DESKTOP) ── */}
+          {/* SCENARIO A: ACTIVE SCREEN / CONTENT SHARE */}
           {isSharingScreen ? (
-            <div className="relative w-full h-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#0A0A0A] border border-[#262626] shadow-2xl flex flex-col">
+            <div className="relative w-full h-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#0A0A0A] border border-[#222] shadow-2xl flex flex-col">
               
-              {/* Screen Share Status Bar */}
-              <div className="h-8 sm:h-9 px-3 bg-[#181818] border-b border-[#2A2A2A] flex items-center justify-between text-xs text-emerald-400 shrink-0 z-10">
+              {/* Share Top Bar */}
+              <div className="h-8 sm:h-9 px-3 bg-[#181818] border-b border-[#252525] flex items-center justify-between text-xs text-emerald-400 shrink-0 z-10">
                 <div className="flex items-center gap-1.5 font-medium truncate">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                   <span className="truncate">
-                    {screenShareType === 'native' && 'Live Screen Broadcast'}
+                    {screenShareType === 'native' && 'Live Computer / Window Broadcast'}
+                    {screenShareType === 'whiteboard' && 'Interactive Tactical Whiteboard Canvas'}
+                    {screenShareType === 'photo' && 'Candidate Document & Story Presentation'}
                     {screenShareType === 'tat' && 'TAT Psychological Slide Deck'}
-                    {screenShareType === 'wat' && 'WAT 15s Rapid Flashcard Battery'}
-                    {screenShareType === 'piq' && 'PIQ Candidate Dossier Audit'}
+                    {screenShareType === 'wat' && 'WAT 15s Rapid Word Battery'}
+                    {screenShareType === 'piq' && 'PIQ Candidate Dossier Form'}
                   </span>
                 </div>
                 <button
@@ -535,9 +633,11 @@ export const ZoomMeetingPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Screen Content Stage */}
+              {/* Share Content Viewport */}
               <div className="flex-1 relative bg-black flex items-center justify-center p-1 overflow-hidden">
-                {screenShareType === 'native' ? (
+                
+                {/* 1. Native Display Media Stream */}
+                {screenShareType === 'native' && (
                   <video
                     ref={(el) => {
                       screenVideoRef.current = el;
@@ -551,7 +651,68 @@ export const ZoomMeetingPage: React.FC = () => {
                     muted
                     className="w-full h-full object-contain bg-black"
                   />
-                ) : screenShareType === 'tat' ? (
+                )}
+
+                {/* 2. Interactive Whiteboard Canvas */}
+                {screenShareType === 'whiteboard' && (
+                  <div className="w-full h-full flex flex-col items-center justify-center relative bg-[#141414]">
+                    {/* Whiteboard Toolbar */}
+                    <div className="absolute top-3 z-20 flex items-center gap-2 bg-[#202020] px-3 py-1.5 rounded-full border border-[#333] shadow-lg text-xs">
+                      <span className="text-gray-400 text-[10px] font-mono">Pen:</span>
+                      {['#E6B980', '#FFFFFF', '#10B981', '#3B82F6', '#EF4444'].map(color => (
+                        <button
+                          key={color}
+                          onClick={() => setBrushColor(color)}
+                          style={{ backgroundColor: color }}
+                          className={`w-5 h-5 rounded-full border transition-transform ${brushColor === color ? 'scale-125 border-white' : 'border-transparent'}`}
+                        />
+                      ))}
+                      <div className="h-4 w-px bg-gray-600 mx-1" />
+                      <button
+                        onClick={clearWhiteboard}
+                        className="flex items-center gap-1 text-red-400 hover:text-red-300 font-semibold"
+                        title="Clear whiteboard"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Clear</span>
+                      </button>
+                    </div>
+
+                    <canvas
+                      ref={whiteboardCanvasRef}
+                      width={1280}
+                      height={720}
+                      onMouseDown={startDrawingAction}
+                      onMouseUp={stopDrawingAction}
+                      onMouseMove={drawAction}
+                      onTouchStart={startDrawingAction}
+                      onTouchEnd={stopDrawingAction}
+                      onTouchMove={drawAction}
+                      className="w-full h-full object-contain cursor-crosshair touch-none"
+                    />
+                  </div>
+                )}
+
+                {/* 3. Photo / Handwritten Document Presentation */}
+                {screenShareType === 'photo' && (
+                  <div className="w-full h-full flex items-center justify-center p-2">
+                    {uploadedPhotoUrl ? (
+                      <img
+                        src={uploadedPhotoUrl}
+                        alt="Presented Document"
+                        className="w-full h-full object-contain rounded-lg shadow-2xl"
+                      />
+                    ) : (
+                      <div className="text-center p-6 text-gray-400">
+                        <Image className="w-12 h-12 mx-auto text-brand-gold mb-2" />
+                        <p className="text-xs">Select an image or handwritten TAT story from your device to present.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 4. TAT Deck */}
+                {screenShareType === 'tat' && (
                   <div className="w-full max-w-2xl h-full flex flex-col items-center justify-center text-center p-3">
                     <span className="text-[10px] font-mono text-brand-gold uppercase tracking-widest font-semibold mb-1">
                       Observation Phase (30s)
@@ -563,26 +724,30 @@ export const ZoomMeetingPage: React.FC = () => {
                         className="w-full h-full object-cover filter contrast-125 brightness-90 grayscale"
                       />
                     </div>
-                    <p className="text-[11px] text-gray-300 mt-2 font-mono">
-                      Formulate story: Past cause → Present action → Future resolution.
-                    </p>
                   </div>
-                ) : screenShareType === 'wat' ? (
-                  <div className="w-full max-w-md p-6 rounded-2xl bg-[#181818] border border-brand-gold/50 text-center space-y-4 shadow-2xl">
+                )}
+
+                {/* 5. WAT Deck */}
+                {screenShareType === 'wat' && (
+                  <div className="w-full max-w-md p-6 rounded-2xl bg-[#161616] border border-brand-gold/50 text-center space-y-4 shadow-2xl">
                     <span className="text-[10px] font-mono text-gray-400">Word 1 of 7</span>
                     <h2 className="text-3xl sm:text-4xl font-black font-mono text-brand-gold tracking-widest">
                       LEADERSHIP
                     </h2>
                     <p className="text-xs text-gray-400 font-mono">Formulate an authentic, active, OLQ-aligned sentence.</p>
                   </div>
-                ) : (
-                  <div className="w-full max-w-lg p-4 rounded-xl bg-[#141414] border border-[#2D2D2D] text-left text-xs font-mono space-y-2">
+                )}
+
+                {/* 6. PIQ Form */}
+                {screenShareType === 'piq' && (
+                  <div className="w-full max-w-lg p-4 rounded-xl bg-[#121212] border border-[#2B2B2B] text-left text-xs font-mono space-y-2">
                     <p className="font-bold text-brand-gold text-sm">CANDIDATE DOSSIER (PIQ)</p>
                     <p className="text-gray-300">Name: Arjun Sharma · Chest 24</p>
                     <p className="text-gray-300">Entry: CDS 2 2026 · IMA Preference</p>
                     <p className="text-emerald-400">Diagnostic: Physical transformation & OLQ consistency</p>
                   </div>
                 )}
+
               </div>
 
               {/* Floating Speaker PIP (Corner overlay during share) */}
@@ -597,13 +762,14 @@ export const ZoomMeetingPage: React.FC = () => {
                   <span>{mentor}</span>
                 </div>
               </div>
+
             </div>
           ) : viewMode === 'speaker' ? (
-            /* ── B: SPEAKER VIEW (MENTOR MAIN + CANDIDATE PIP) ── */
-            <div className="relative w-full h-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#141414] border border-[#222] shadow-2xl flex items-center justify-center">
+            /* SCENARIO B: SPEAKER VIEW (MENTOR MAIN + CANDIDATE PIP) */
+            <div className="relative w-full h-full rounded-xl sm:rounded-2xl overflow-hidden bg-[#121212] border border-[#202020] shadow-2xl flex items-center justify-center">
               
               {/* Mentor Video Feed */}
-              <div className="relative w-full h-full flex items-center justify-center bg-[#111]">
+              <div className="relative w-full h-full flex items-center justify-center bg-[#0F0F0F]">
                 <img
                   src="/images/mentor-portrait.jpg"
                   alt="Lt. Vamshi E."
@@ -620,8 +786,8 @@ export const ZoomMeetingPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Candidate PIP (Top Right Corner - Compact on Mobile) */}
-              <div className="absolute top-3 right-3 sm:top-5 sm:right-5 w-24 sm:w-48 aspect-[3/4] sm:aspect-video rounded-xl overflow-hidden bg-[#1E1E1E] border-2 border-[#333] shadow-2xl flex flex-col justify-end z-20">
+              {/* Candidate PIP with REAL CAMERA & REACTION BADGE */}
+              <div className="absolute top-3 right-3 sm:top-5 sm:right-5 w-24 sm:w-48 aspect-[3/4] sm:aspect-video rounded-xl overflow-hidden bg-[#1A1A1A] border-2 border-[#303030] shadow-2xl flex flex-col justify-end z-20">
                 {!isVideoOff ? (
                   <div className="w-full h-full relative bg-black flex items-center justify-center">
                     <video
@@ -631,13 +797,24 @@ export const ZoomMeetingPage: React.FC = () => {
                       muted
                       className="w-full h-full object-cover transform -scale-x-100"
                     />
+                    {/* Spring Reaction Badge on Candidate Tile */}
+                    {activeReactionBadge && (
+                      <div className="absolute top-2 right-2 text-2xl sm:text-3xl bg-black/80 backdrop-blur-sm rounded-full w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center border border-white/20 animate-bounce shadow-2xl">
+                        {activeReactionBadge}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="w-full h-full bg-[#181818] flex flex-col items-center justify-center text-gray-400">
+                  <div className="w-full h-full bg-[#161616] flex flex-col items-center justify-center text-gray-400 relative">
                     <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow">
                       AS
                     </div>
                     <span className="text-[9px] text-gray-500 mt-0.5 font-mono">Off</span>
+                    {activeReactionBadge && (
+                      <div className="absolute top-2 right-2 text-2xl bg-black/80 rounded-full w-8 h-8 flex items-center justify-center">
+                        {activeReactionBadge}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -661,11 +838,11 @@ export const ZoomMeetingPage: React.FC = () => {
 
             </div>
           ) : (
-            /* ── C: GALLERY VIEW (CLEAN 2x2 GRID RESPONSIVE) ── */
+            /* SCENARIO C: GALLERY VIEW (CLEAN 2x2 GRID RESPONSIVE) */
             <div className="w-full h-full max-w-6xl grid grid-cols-2 gap-2 sm:gap-3 p-1">
               
               {/* Tile 1: Mentor */}
-              <div className="relative rounded-xl overflow-hidden bg-[#141414] border border-[#252525] shadow-lg flex items-center justify-center">
+              <div className="relative rounded-xl overflow-hidden bg-[#121212] border border-[#222] shadow-lg flex items-center justify-center">
                 <img
                   src="/images/mentor-portrait.jpg"
                   alt="Lt. Vamshi E."
@@ -678,7 +855,7 @@ export const ZoomMeetingPage: React.FC = () => {
               </div>
 
               {/* Tile 2: Arjun Sharma (You) */}
-              <div className="relative rounded-xl overflow-hidden bg-[#141414] border-2 border-brand-gold/60 shadow-lg flex flex-col justify-end">
+              <div className="relative rounded-xl overflow-hidden bg-[#121212] border-2 border-brand-gold/60 shadow-lg flex flex-col justify-end">
                 {!isVideoOff ? (
                   <div className="w-full h-full relative bg-black flex items-center justify-center">
                     <video
@@ -688,9 +865,14 @@ export const ZoomMeetingPage: React.FC = () => {
                       muted
                       className="w-full h-full object-cover transform -scale-x-100"
                     />
+                    {activeReactionBadge && (
+                      <div className="absolute top-2 right-2 text-2xl bg-black/80 rounded-full w-9 h-9 flex items-center justify-center border border-white/20 animate-bounce">
+                        {activeReactionBadge}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="w-full h-full bg-[#181818] flex flex-col items-center justify-center text-gray-400">
+                  <div className="w-full h-full bg-[#161616] flex flex-col items-center justify-center text-gray-400">
                     <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm mb-1">
                       AS
                     </div>
@@ -707,8 +889,8 @@ export const ZoomMeetingPage: React.FC = () => {
               </div>
 
               {/* Tile 3: Priya Nair */}
-              <div className="relative rounded-xl overflow-hidden bg-[#141414] border border-[#252525] shadow-lg flex flex-col justify-end">
-                <div className="w-full h-full bg-[#181818] flex flex-col items-center justify-center text-gray-400">
+              <div className="relative rounded-xl overflow-hidden bg-[#121212] border border-[#222] shadow-lg flex flex-col justify-end">
+                <div className="w-full h-full bg-[#161616] flex flex-col items-center justify-center text-gray-400">
                   <div className="w-10 h-10 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-sm mb-1">
                     PN
                   </div>
@@ -721,8 +903,8 @@ export const ZoomMeetingPage: React.FC = () => {
               </div>
 
               {/* Tile 4: Rohit Verma */}
-              <div className="relative rounded-xl overflow-hidden bg-[#141414] border border-[#252525] shadow-lg flex flex-col justify-end">
-                <div className="w-full h-full bg-[#181818] flex flex-col items-center justify-center text-gray-400">
+              <div className="relative rounded-xl overflow-hidden bg-[#121212] border border-[#222] shadow-lg flex flex-col justify-end">
+                <div className="w-full h-full bg-[#161616] flex flex-col items-center justify-center text-gray-400">
                   <div className="w-10 h-10 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-sm mb-1">
                     RV
                   </div>
@@ -741,10 +923,10 @@ export const ZoomMeetingPage: React.FC = () => {
 
         {/* ── 3. RESPONSIVE SIDE DRAWER (CHAT / ATTENDEES / DRILLS) ── */}
         {activeDrawer !== 'none' && (
-          <aside className="fixed sm:static inset-0 sm:inset-auto sm:w-80 md:w-96 bg-[#161616] border-l border-[#262626] flex flex-col z-50 shadow-2xl">
+          <aside className="fixed sm:static inset-0 sm:inset-auto sm:w-80 md:w-96 bg-[#161616] border-l border-[#242424] flex flex-col z-50 shadow-2xl">
             
             {/* Drawer Header Tabs */}
-            <div className="h-12 px-3 border-b border-[#262626] flex items-center justify-between">
+            <div className="h-12 px-3 border-b border-[#242424] flex items-center justify-between">
               <div className="flex items-center gap-1 text-xs">
                 <button
                   onClick={() => setActiveDrawer('chat')}
@@ -785,7 +967,7 @@ export const ZoomMeetingPage: React.FC = () => {
               <div className="flex-1 flex flex-col justify-between overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 text-xs">
                   {chatMessages.map((m, i) => (
-                    <div key={i} className={`p-2.5 rounded-xl border ${m.isMe ? 'bg-[#222] border-[#333] ml-4' : 'bg-[#1A1A1A] border-[#2A2A2A] mr-4'}`}>
+                    <div key={i} className={`p-2.5 rounded-xl border ${m.isMe ? 'bg-[#222] border-[#303030] ml-4' : 'bg-[#181818] border-[#252525] mr-4'}`}>
                       <div className="flex items-center justify-between text-[10px] text-gray-400 mb-1">
                         <span className="font-semibold text-white">{m.sender} {m.tag && `(${m.tag})`}</span>
                         <span>{m.time}</span>
@@ -795,12 +977,12 @@ export const ZoomMeetingPage: React.FC = () => {
                   ))}
                 </div>
 
-                <form onSubmit={handleSendMessage} className="p-3 border-t border-[#262626] flex gap-2 bg-[#121212]">
+                <form onSubmit={handleSendMessage} className="p-3 border-t border-[#242424] flex gap-2 bg-[#121212]">
                   <input
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="Type message..."
-                    className="flex-1 bg-[#1E1E1E] border border-[#303030] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                    className="flex-1 bg-[#1C1C1C] border border-[#2D2D2D] rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
                   />
                   <button type="submit" className="px-3.5 py-2 rounded-lg bg-brand-gold text-brand-dark font-bold text-xs shrink-0">
                     <Send className="w-3.5 h-3.5" />
@@ -812,8 +994,7 @@ export const ZoomMeetingPage: React.FC = () => {
             {/* TAB: PARTICIPANTS */}
             {activeDrawer === 'participants' && (
               <div className="flex-1 overflow-y-auto p-4 space-y-2.5 text-xs">
-                {/* Mentor */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#1E1E1E] border border-white/5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-brand-gold text-brand-dark font-bold flex items-center justify-center text-xs">
                       LV
@@ -829,8 +1010,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Candidate */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#1E1E1E] border border-white/5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
                       AS
@@ -847,8 +1027,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Priya */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#1E1E1E] border border-white/5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-purple-700 text-white font-bold flex items-center justify-center text-xs">
                       PN
@@ -864,8 +1043,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Rohit */}
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#202020] border border-white/5">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#1E1E1E] border border-white/5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-emerald-800 text-white font-bold flex items-center justify-center text-xs">
                       RV
@@ -883,7 +1061,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                 <button
                   onClick={() => setShowInviteModal(true)}
-                  className="w-full mt-4 py-2 rounded-xl bg-[#2A2A2A] hover:bg-[#333] text-brand-gold text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-brand-gold/30"
+                  className="w-full mt-4 py-2 rounded-xl bg-[#252525] hover:bg-[#303030] text-brand-gold text-xs font-semibold flex items-center justify-center gap-2 transition-colors border border-brand-gold/30"
                 >
                   <LinkIcon className="w-3.5 h-3.5" /> Invite Candidates via Link
                 </button>
@@ -893,7 +1071,7 @@ export const ZoomMeetingPage: React.FC = () => {
             {/* TAB: SSB DRILLS */}
             {activeDrawer === 'drills' && (
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="grid grid-cols-3 p-2 bg-[#121212] border-b border-[#262626] text-xs font-semibold">
+                <div className="grid grid-cols-3 p-2 bg-[#121212] border-b border-[#242424] text-xs font-semibold">
                   <button
                     onClick={() => setDrillTab('tat')}
                     className={`py-1 rounded-md ${drillTab === 'tat' ? 'bg-brand-gold text-brand-dark' : 'text-gray-400 hover:text-white'}`}
@@ -917,7 +1095,7 @@ export const ZoomMeetingPage: React.FC = () => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
                   {drillTab === 'tat' && (
                     <div className="space-y-3">
-                      <div className="p-3 rounded-xl bg-[#202020] border border-[#333] flex justify-between items-center">
+                      <div className="p-3 rounded-xl bg-[#1E1E1E] border border-[#303030] flex justify-between items-center">
                         <div>
                           <span className="text-[10px] text-gray-400 uppercase font-mono">Phase</span>
                           <p className="font-bold text-white">30s Observation Phase</p>
@@ -932,7 +1110,7 @@ export const ZoomMeetingPage: React.FC = () => {
                           value={candidateStory}
                           onChange={(e) => setCandidateStory(e.target.value)}
                           placeholder="Type main hero, background action, crisis resolution, and outcome..."
-                          className="w-full bg-[#1E1E1E] border border-[#303030] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl p-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
                         />
                         <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
                           <span>Words: {candidateStory.trim() ? candidateStory.trim().split(/\s+/).length : 0}</span>
@@ -965,7 +1143,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
                   {drillTab === 'wat' && (
                     <div className="space-y-3">
-                      <div className="p-4 rounded-xl bg-[#202020] border border-brand-gold/40 text-center space-y-2">
+                      <div className="p-4 rounded-xl bg-[#1E1E1E] border border-brand-gold/40 text-center space-y-2">
                         <span className="text-[10px] font-mono text-gray-400">Word ({watIndex + 1}/7)</span>
                         <h4 className="text-2xl font-black font-mono tracking-widest text-brand-gold">{watWords[watIndex]}</h4>
                         <span className="text-xs font-mono text-emerald-400">{watTimer}s</span>
@@ -976,12 +1154,11 @@ export const ZoomMeetingPage: React.FC = () => {
                           value={watInput}
                           onChange={(e) => setWatInput(e.target.value)}
                           placeholder="Type active OLQ association sentence..."
-                          className="w-full bg-[#1E1E1E] border border-[#303030] rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
+                          className="w-full bg-[#1A1A1A] border border-[#2D2D2D] rounded-xl px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-brand-gold"
                         />
                         <button
                           onClick={() => {
                             if (!watInput.trim()) return;
-                            setWatHistory(prev => [...prev, { word: watWords[watIndex], sentence: watInput.trim() }]);
                             setWatInput('');
                             setWatIndex(idx => (idx + 1) % watWords.length);
                             setWatTimer(15);
@@ -996,7 +1173,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   )}
 
                   {drillTab === 'piq' && (
-                    <div className="p-3 rounded-xl bg-[#202020] border border-white/5 space-y-2 text-xs font-mono">
+                    <div className="p-3 rounded-xl bg-[#1E1E1E] border border-white/5 space-y-2 text-xs font-mono">
                       <span className="text-brand-gold font-bold block font-sans">Aspirant Dossier (Chest 24)</span>
                       <div className="flex justify-between py-1 border-b border-white/5">
                         <span className="text-gray-400">Name:</span>
@@ -1021,8 +1198,8 @@ export const ZoomMeetingPage: React.FC = () => {
 
       </div>
 
-      {/* ── 4. MODERN RESPONSIVE CONTROLS DOCK ── */}
-      <footer className="h-16 px-2 sm:px-6 bg-[#181818] border-t border-[#262626] flex items-center justify-between shrink-0 z-30">
+      {/* ── 4. MODERN ZOOM-STYLE CONTROLS DOCK ── */}
+      <footer className="h-16 px-2 sm:px-6 bg-[#161616] border-t border-[#242424] flex items-center justify-between shrink-0 z-30">
         
         {/* Desktop Left Brand */}
         <div className="hidden lg:flex items-center gap-2 text-xs text-gray-400">
@@ -1054,7 +1231,7 @@ export const ZoomMeetingPage: React.FC = () => {
             <span className="text-[10px] mt-0.5">{isVideoOff ? 'Start' : 'Stop'}</span>
           </button>
 
-          {/* 3. Share Content (PROMINENT GREEN BUTTON ON MOBILE) */}
+          {/* 3. Share Content */}
           <button
             onClick={() => {
               if (isSharingScreen) stopScreenShare();
@@ -1095,7 +1272,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={toggleMute}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              isMuted ? 'bg-red-500/20 text-red-500' : 'bg-[#242424] hover:bg-[#303030] text-gray-200'
+              isMuted ? 'bg-red-500/20 text-red-500' : 'bg-[#222] hover:bg-[#2C2C2C] text-gray-200'
             }`}
             title="Mute / Unmute"
           >
@@ -1107,7 +1284,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={toggleVideo}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              isVideoOff ? 'bg-red-500/20 text-red-500' : 'bg-[#242424] hover:bg-[#303030] text-gray-200'
+              isVideoOff ? 'bg-red-500/20 text-red-500' : 'bg-[#222] hover:bg-[#2C2C2C] text-gray-200'
             }`}
             title="Start / Stop Video"
           >
@@ -1115,16 +1292,16 @@ export const ZoomMeetingPage: React.FC = () => {
             <span className="text-[9px] mt-0.5">{isVideoOff ? 'Start' : 'Stop'}</span>
           </button>
 
-          {/* Share Screen */}
+          {/* Share Content */}
           <button
             onClick={() => {
               if (isSharingScreen) stopScreenShare();
               else setShowShareOptionsModal(true);
             }}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              isSharingScreen ? 'bg-emerald-600 text-white animate-pulse' : 'bg-[#242424] hover:bg-[#303030] text-emerald-400'
+              isSharingScreen ? 'bg-emerald-600 text-white animate-pulse' : 'bg-[#222] hover:bg-[#2C2C2C] text-emerald-400'
             }`}
-            title="Share Screen"
+            title="Share Content"
           >
             <Share2 className="w-5 h-5" />
             <span className="text-[9px] mt-0.5">{isSharingScreen ? 'Stop' : 'Share'}</span>
@@ -1134,7 +1311,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={toggleRecording}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-[#242424] hover:bg-[#303030] text-red-400'
+              isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-[#222] hover:bg-[#2C2C2C] text-red-400'
             }`}
             title="Record Class"
           >
@@ -1146,7 +1323,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={() => setShowReactionsMenu(!showReactionsMenu)}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              showReactionsMenu || handRaised ? 'bg-yellow-400/20 text-yellow-400' : 'bg-[#242424] hover:bg-[#303030] text-gray-200'
+              showReactionsMenu || handRaised ? 'bg-yellow-400/20 text-yellow-400' : 'bg-[#222] hover:bg-[#2C2C2C] text-gray-200'
             }`}
             title="Reactions"
           >
@@ -1158,7 +1335,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={() => setActiveDrawer(activeDrawer === 'chat' ? 'none' : 'chat')}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              activeDrawer === 'chat' ? 'bg-[#333] text-brand-gold' : 'bg-[#242424] hover:bg-[#303030] text-gray-200'
+              activeDrawer === 'chat' ? 'bg-[#303030] text-brand-gold' : 'bg-[#222] hover:bg-[#2C2C2C] text-gray-200'
             }`}
             title="Chat"
           >
@@ -1170,7 +1347,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={() => setActiveDrawer(activeDrawer === 'participants' ? 'none' : 'participants')}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              activeDrawer === 'participants' ? 'bg-[#333] text-brand-gold' : 'bg-[#242424] hover:bg-[#303030] text-gray-200'
+              activeDrawer === 'participants' ? 'bg-[#303030] text-brand-gold' : 'bg-[#222] hover:bg-[#2C2C2C] text-gray-200'
             }`}
             title="Participants"
           >
@@ -1182,7 +1359,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={() => setActiveDrawer(activeDrawer === 'drills' ? 'none' : 'drills')}
             className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
-              activeDrawer === 'drills' ? 'bg-brand-gold text-brand-dark font-bold' : 'bg-[#242424] hover:bg-[#303030] text-brand-gold'
+              activeDrawer === 'drills' ? 'bg-brand-gold text-brand-dark font-bold' : 'bg-[#222] hover:bg-[#2C2C2C] text-brand-gold'
             }`}
             title="SSB Drills"
           >
@@ -1204,17 +1381,17 @@ export const ZoomMeetingPage: React.FC = () => {
 
       </footer>
 
-      {/* ── 5. SHARE CONTENT OPTIONS MODAL (MOBILE & DESKTOP) ── */}
+      {/* ── 5. SEAMLESS SHARE CONTENT MODAL (ZERO SECURITY NOTICES) ── */}
       {showShareOptionsModal && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
           onClick={() => setShowShareOptionsModal(false)}
         >
           <div
-            className="bg-[#1C1C1C] border border-[#333] max-w-sm w-full rounded-2xl p-5 space-y-4 shadow-2xl relative"
+            className="bg-[#1A1A1A] border border-[#2E2E2E] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
+            <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
               <div className="flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-emerald-400" />
                 <h3 className="font-bold text-sm text-white">Share Content to Stage</h3>
@@ -1224,48 +1401,64 @@ export const ZoomMeetingPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-2.5 text-xs">
-              {/* Native Screen Share */}
+            <div className="space-y-2 text-xs">
+              
+              {/* Option 1: Live Screen Capture (Supported on Desktop & Android Chrome) */}
               <button
                 onClick={startNativeScreenShare}
-                className="w-full p-3.5 rounded-xl bg-[#262626] hover:bg-[#303030] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-emerald-500/30 text-left flex items-center gap-3 transition-colors"
               >
                 <div className="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
                   <Monitor className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-semibold text-white">Live Computer / Mobile Screen</h4>
-                  <p className="text-[10px] text-gray-400">Share your live screen, window, or browser tab</p>
+                  <h4 className="font-semibold text-white">Live Computer / Device Screen</h4>
+                  <p className="text-[10px] text-gray-400">Broadcast your real screen, window, or browser tab</p>
                 </div>
               </button>
 
-              {/* TAT Deck */}
+              {/* Option 2: Live Finger/Mouse Whiteboard (Works 100% on all mobile & desktop!) */}
               <button
-                onClick={() => startDeckPresentation('tat')}
-                className="w-full p-3.5 rounded-xl bg-[#262626] hover:bg-[#303030] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
+                onClick={() => startPresentation('whiteboard')}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-brand-gold/30 text-left flex items-center gap-3 transition-colors"
               >
                 <div className="w-9 h-9 rounded-lg bg-brand-gold/20 text-brand-gold flex items-center justify-center shrink-0">
+                  <PenTool className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">Live Interactive Whiteboard</h4>
+                  <p className="text-[10px] text-gray-400">Sketch tactical diagrams & write notes live with finger or mouse</p>
+                </div>
+              </button>
+
+              {/* Option 3: Upload Photo of Handwritten TAT Story / PIQ (Works 100% on phone gallery!) */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <Image className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">Present Photo / Handwritten Story</h4>
+                  <p className="text-[10px] text-gray-400">Select a story picture or PIQ document from your phone</p>
+                </div>
+              </button>
+
+              {/* Option 4: TAT Deck */}
+              <button
+                onClick={() => startPresentation('tat')}
+                className="w-full p-3 rounded-xl bg-[#222] hover:bg-[#2A2A2A] border border-purple-500/30 text-left flex items-center gap-3 transition-colors"
+              >
+                <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-semibold text-white">TAT Psychological Picture Deck</h4>
-                  <p className="text-[10px] text-gray-400">Broadcast official 30s observation stimulus</p>
+                  <p className="text-[10px] text-gray-400">Broadcast official 30s stimulus image</p>
                 </div>
               </button>
 
-              {/* WAT Deck */}
-              <button
-                onClick={() => startDeckPresentation('wat')}
-                className="w-full p-3.5 rounded-xl bg-[#262626] hover:bg-[#303030] border border-blue-500/30 text-left flex items-center gap-3 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-white">WAT 15s Rapid Word Battery</h4>
-                  <p className="text-[10px] text-gray-400">Display timed psychological keywords</p>
-                </div>
-              </button>
             </div>
           </div>
         </div>
@@ -1278,20 +1471,19 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setShowMobileMoreSheet(false)}
         >
           <div
-            className="bg-[#1C1C1C] border-t border-[#333] w-full rounded-t-3xl p-5 space-y-4 shadow-2xl relative max-h-[80vh] overflow-y-auto"
+            className="bg-[#1A1A1A] border-t border-[#2C2C2C] w-full rounded-t-3xl p-5 space-y-4 shadow-2xl relative max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Grab handle */}
             <div className="w-10 h-1 bg-gray-600 rounded-full mx-auto mb-1" />
 
-            <div className="flex items-center justify-between border-b border-[#2E2E2E] pb-2">
+            <div className="flex items-center justify-between border-b border-[#262626] pb-2">
               <span className="font-bold text-sm text-white">More Class Options</span>
               <button onClick={() => setShowMobileMoreSheet(false)} className="text-gray-400 hover:text-white p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Quick Reactions Grid */}
+            {/* Quick Reactions Grid with Fluid Physics */}
             <div className="space-y-1.5">
               <span className="text-[10px] text-gray-400 uppercase font-mono">Quick Reactions</span>
               <div className="flex items-center justify-between py-1">
@@ -1299,7 +1491,7 @@ export const ZoomMeetingPage: React.FC = () => {
                   <button
                     key={emoji}
                     onClick={() => triggerReaction(emoji)}
-                    className="w-10 h-10 flex items-center justify-center text-2xl rounded-xl bg-[#262626] active:scale-90"
+                    className="w-11 h-11 flex items-center justify-center text-2xl rounded-2xl bg-[#242424] active:scale-90 transition-transform shadow"
                   >
                     {emoji}
                   </button>
@@ -1308,12 +1500,11 @@ export const ZoomMeetingPage: React.FC = () => {
             </div>
 
             {/* Action Buttons List */}
-            <div className="space-y-2 pt-2 border-t border-[#2A2A2A] text-xs">
-              {/* Raise Hand */}
+            <div className="space-y-2 pt-2 border-t border-[#262626] text-xs">
               <button
                 onClick={handleToggleHandRaise}
                 className={`w-full p-3 rounded-xl flex items-center justify-between font-semibold ${
-                  handRaised ? 'bg-yellow-400 text-black' : 'bg-[#252525] text-white'
+                  handRaised ? 'bg-yellow-400 text-black' : 'bg-[#222] text-white'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -1323,10 +1514,9 @@ export const ZoomMeetingPage: React.FC = () => {
                 {handRaised && <span className="text-[10px] uppercase font-mono">Raised</span>}
               </button>
 
-              {/* Record Toggle */}
               <button
                 onClick={toggleRecording}
-                className="w-full p-3 rounded-xl bg-[#252525] text-white flex items-center justify-between font-semibold"
+                className="w-full p-3 rounded-xl bg-[#222] text-white flex items-center justify-between font-semibold"
               >
                 <div className="flex items-center gap-2.5">
                   <Disc className={`w-4 h-4 ${isRecording ? 'text-red-500 animate-spin' : 'text-gray-400'}`} />
@@ -1335,13 +1525,12 @@ export const ZoomMeetingPage: React.FC = () => {
                 {isRecording && <span className="text-red-400 text-[10px] font-mono">REC ON</span>}
               </button>
 
-              {/* SSB Drills */}
               <button
                 onClick={() => {
                   setShowMobileMoreSheet(false);
                   setActiveDrawer('drills');
                 }}
-                className="w-full p-3 rounded-xl bg-[#252525] text-brand-gold flex items-center justify-between font-semibold"
+                className="w-full p-3 rounded-xl bg-[#222] text-brand-gold flex items-center justify-between font-semibold"
               >
                 <div className="flex items-center gap-2.5">
                   <Target className="w-4 h-4" />
@@ -1349,13 +1538,12 @@ export const ZoomMeetingPage: React.FC = () => {
                 </div>
               </button>
 
-              {/* Attendees List */}
               <button
                 onClick={() => {
                   setShowMobileMoreSheet(false);
                   setActiveDrawer('participants');
                 }}
-                className="w-full p-3 rounded-xl bg-[#252525] text-white flex items-center justify-between font-semibold"
+                className="w-full p-3 rounded-xl bg-[#222] text-white flex items-center justify-between font-semibold"
               >
                 <div className="flex items-center gap-2.5">
                   <Users className="w-4 h-4" />
@@ -1363,13 +1551,12 @@ export const ZoomMeetingPage: React.FC = () => {
                 </div>
               </button>
 
-              {/* Invite Link Details */}
               <button
                 onClick={() => {
                   setShowMobileMoreSheet(false);
                   setShowInviteModal(true);
                 }}
-                className="w-full p-3 rounded-xl bg-[#252525] text-brand-steelLight flex items-center justify-between font-semibold"
+                className="w-full p-3 rounded-xl bg-[#222] text-gray-300 flex items-center justify-between font-semibold"
               >
                 <div className="flex items-center gap-2.5">
                   <LinkIcon className="w-4 h-4 text-brand-gold" />
@@ -1383,7 +1570,7 @@ export const ZoomMeetingPage: React.FC = () => {
 
       {/* ── 7. DESKTOP REACTIONS POPOVER ── */}
       {showReactionsMenu && (
-        <div className="hidden sm:block absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#202020] border border-[#3A3A3A] rounded-2xl p-3 shadow-2xl z-40 animate-fadeIn">
+        <div className="hidden sm:block absolute bottom-20 left-1/2 -translate-x-1/2 bg-[#1C1C1C] border border-[#2E2E2E] rounded-2xl p-3 shadow-2xl z-40 animate-fadeIn">
           <div className="flex items-center gap-2 mb-2">
             {['👏', '👍', '❤️', '😂', '😮', '🎉'].map(emoji => (
               <button
@@ -1398,7 +1585,7 @@ export const ZoomMeetingPage: React.FC = () => {
           <button
             onClick={handleToggleHandRaise}
             className={`w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
-              handRaised ? 'bg-yellow-400 text-black' : 'bg-[#2E2E2E] hover:bg-[#3E3E3E] text-white'
+              handRaised ? 'bg-yellow-400 text-black' : 'bg-[#282828] hover:bg-[#333] text-white'
             }`}
           >
             <Hand className={`w-4 h-4 ${handRaised ? 'fill-black' : ''}`} />
@@ -1414,10 +1601,10 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setShowInviteModal(false)}
         >
           <div
-            className="bg-[#1E1E1E] border border-[#333] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative"
+            className="bg-[#1C1C1C] border border-[#2E2E2E] max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-[#2E2E2E] pb-2.5">
+            <div className="flex items-center justify-between border-b border-[#262626] pb-2.5">
               <h3 className="font-bold text-sm text-white">Class Invitation Details</h3>
               <button onClick={() => setShowInviteModal(false)} className="text-gray-400 hover:text-white">
                 <X className="w-4 h-4" />
@@ -1425,13 +1612,13 @@ export const ZoomMeetingPage: React.FC = () => {
             </div>
 
             <div className="space-y-2.5 text-xs font-mono">
-              <div className="p-2.5 rounded-xl bg-[#141414] border border-[#282828]">
+              <div className="p-2.5 rounded-xl bg-[#141414] border border-[#222]">
                 <p className="text-[10px] text-brand-gold uppercase">Topic</p>
                 <p className="font-sans font-semibold text-white text-xs mt-0.5 truncate">{topic}</p>
                 <p className="text-gray-400 text-[10px]">Mentor: {mentor} · AIR 34</p>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#242424] border border-[#333]">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#222] border border-[#2C2C2C]">
                 <div>
                   <p className="text-[9px] text-gray-400 uppercase">Meeting ID</p>
                   <p className="text-sm font-bold text-brand-gold">{meetingCode}</p>
@@ -1442,13 +1629,13 @@ export const ZoomMeetingPage: React.FC = () => {
                     setCopiedKey('code');
                     setTimeout(() => setCopiedKey(null), 2000);
                   }}
-                  className="px-2.5 py-1 rounded bg-[#333] hover:bg-[#444] text-xs font-semibold"
+                  className="px-2.5 py-1 rounded bg-[#303030] hover:bg-[#3D3D3D] text-xs font-semibold"
                 >
                   {copiedKey === 'code' ? 'Copied' : 'Copy'}
                 </button>
               </div>
 
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#242424] border border-[#333]">
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#222] border border-[#2C2C2C]">
                 <div>
                   <p className="text-[9px] text-gray-400 uppercase">Passcode</p>
                   <p className="text-xs font-bold text-white">{passcode}</p>
@@ -1459,7 +1646,7 @@ export const ZoomMeetingPage: React.FC = () => {
                     setCopiedKey('pass');
                     setTimeout(() => setCopiedKey(null), 2000);
                   }}
-                  className="px-2.5 py-1 rounded bg-[#333] hover:bg-[#444] text-xs font-semibold"
+                  className="px-2.5 py-1 rounded bg-[#303030] hover:bg-[#3D3D3D] text-xs font-semibold"
                 >
                   {copiedKey === 'pass' ? 'Copied' : 'Copy'}
                 </button>
@@ -1487,7 +1674,7 @@ export const ZoomMeetingPage: React.FC = () => {
           onClick={() => setRecordingSavedModal(false)}
         >
           <div
-            className="bg-[#1C1C1C] border border-emerald-500/50 max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative text-center"
+            className="bg-[#1A1A1A] border border-emerald-500/50 max-w-sm w-full rounded-2xl p-5 space-y-3.5 shadow-2xl relative text-center"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
@@ -1501,7 +1688,7 @@ export const ZoomMeetingPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-2.5 rounded-xl bg-[#141414] border border-[#282828] text-left text-xs font-mono space-y-1">
+            <div className="p-2.5 rounded-xl bg-[#141414] border border-[#222] text-left text-xs font-mono space-y-1">
               <div className="flex justify-between">
                 <span className="text-gray-400">Duration:</span>
                 <span className="text-brand-gold font-bold">{savedRecordSummary.duration}</span>
@@ -1515,7 +1702,7 @@ export const ZoomMeetingPage: React.FC = () => {
             <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={() => setRecordingSavedModal(false)}
-                className="flex-1 py-2 rounded-xl bg-[#2A2A2A] hover:bg-[#333] text-gray-200 text-xs font-semibold"
+                className="flex-1 py-2 rounded-xl bg-[#262626] hover:bg-[#303030] text-gray-200 text-xs font-semibold"
               >
                 Continue
               </button>
