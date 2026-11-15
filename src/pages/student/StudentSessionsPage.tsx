@@ -33,6 +33,9 @@ export const StudentSessionsPage: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState('Saturday 18:00 IST');
   const [sessionTopic, setSessionTopic] = useState('Psychology TAT Dossier Review');
 
+  // Active Video Playback Modal
+  const [playingVideo, setPlayingVideo] = useState<{ topic: string; mentor: string; videoUrl?: string; timestamp: string } | null>(null);
+
   // Join With Code Modal
   const [joinCodeModalOpen, setJoinCodeModalOpen] = useState(false);
   const [inputMeetingCode, setInputMeetingCode] = useState('842 1900 3328');
@@ -297,17 +300,30 @@ Security Passcode: SSB2026`;
                 <div className="pt-3 border-t border-brand-border flex items-center gap-3">
                   <button
                     onClick={() => {
-                      navigate(`/student/live-meeting?topic=${encodeURIComponent(rec.topic)}&mentor=${encodeURIComponent(rec.mentor)}`);
+                      setPlayingVideo({
+                        topic: rec.topic,
+                        mentor: rec.mentor,
+                        videoUrl: (rec as any).videoUrl,
+                        timestamp: rec.timestamp
+                      });
                     }}
-                    className="flex-1 py-2 rounded-lg bg-[#0E71EB] hover:bg-[#005CE6] text-white text-xs font-semibold flex items-center justify-center gap-2 transition-colors shadow"
+                    className="flex-1 py-2 rounded-lg bg-brand-gold hover:bg-brand-goldLight text-brand-dark text-xs font-bold flex items-center justify-center gap-2 transition-colors shadow"
                   >
-                    <Play className="w-3.5 h-3.5 fill-white" />
-                    Review Debrief
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Watch Video Debrief
                   </button>
 
                   <button
                     onClick={() => {
-                      showToast('Downloading recorded class dossier video...', 'info');
+                      if ((rec as any).videoUrl) {
+                        const a = document.createElement('a');
+                        a.href = (rec as any).videoUrl;
+                        a.download = `SSB-Recording-${rec.id}.webm`;
+                        a.click();
+                        showToast('Downloading live class recording...', 'success');
+                      } else {
+                        showToast('Sample archive recording ready for playback.', 'info');
+                      }
                     }}
                     className="px-3 py-2 rounded-lg bg-brand-bgSecondary hover:bg-brand-cardHover border border-brand-border text-brand-steelLight hover:text-white text-xs transition-colors"
                     title="Download Video Archive"
@@ -485,6 +501,60 @@ Security Passcode: SSB2026`;
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ── MODAL 3: VIDEO RECORDING PLAYBACK MODAL ── */}
+      {playingVideo && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setPlayingVideo(null)}
+        >
+          <div 
+            className="bg-[#0E1524] border border-brand-gold/60 max-w-3xl w-full rounded-2xl overflow-hidden shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-[#1E293B] flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-mono uppercase text-brand-gold">Dossier Video Archive</span>
+                <h3 className="font-heading font-bold text-sm text-white">{playingVideo.topic}</h3>
+                <p className="text-xs text-gray-400 font-mono">Assessor: {playingVideo.mentor} · {playingVideo.timestamp}</p>
+              </div>
+              <button onClick={() => setPlayingVideo(null)} className="p-1 rounded-lg text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="aspect-video bg-black flex items-center justify-center relative">
+              {playingVideo.videoUrl && playingVideo.videoUrl !== '#' ? (
+                <video
+                  src={playingVideo.videoUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="text-center p-8 space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-brand-gold/20 text-brand-gold flex items-center justify-center mx-auto animate-pulse">
+                    <Play className="w-8 h-8 fill-brand-gold ml-1" />
+                  </div>
+                  <div>
+                    <h4 className="font-heading font-bold text-white text-base">Recorded Class Stream Video Ready</h4>
+                    <p className="text-xs text-gray-400 max-w-md mx-auto mt-1">
+                      This session was recorded live with psychological battery deduction and candidate feedback.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigate(`/student/live-meeting?topic=${encodeURIComponent(playingVideo.topic)}&mentor=${encodeURIComponent(playingVideo.mentor)}`);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-brand-gold hover:bg-brand-goldLight text-brand-dark font-bold text-xs shadow-md transition-all"
+                  >
+                    Open Live Mentorship Studio
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
