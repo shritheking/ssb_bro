@@ -104,21 +104,14 @@ export default function App() {
       </Route>
 
       {/* ── FULL-PAGE DEDICATED LIVE CLASS & MEETING ROOM (MOBILE & DESKTOP) ── */}
+      {/* Accessible directly via shared link or class code without barrier */}
       <Route
         path="/student/live-meeting"
-        element={
-          <StudentRoute>
-            <ZoomMeetingPage />
-          </StudentRoute>
-        }
+        element={<ZoomMeetingPage />}
       />
       <Route
         path="/student/zoom-meeting"
-        element={
-          <StudentRoute>
-            <ZoomMeetingPage />
-          </StudentRoute>
-        }
+        element={<ZoomMeetingPage />}
       />
 
       {/* ── ADMIN AUTH ── */}
