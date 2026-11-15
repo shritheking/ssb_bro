@@ -248,6 +248,18 @@ export const ZoomMeetingPage: React.FC = () => {
   const [showDriveApiConfigModal, setShowDriveApiConfigModal] = useState(false);
   const [isDriveLinkedSuccess, setIsDriveLinkedSuccess] = useState(false);
 
+  // Full Studio Live Class Compositor References
+  const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recordingLoopRef = useRef<number | null>(null);
+  const mentorImageRef = useRef<HTMLImageElement | null>(null);
+  const tatSlideImageRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.src = '/images/mentor-portrait.jpg';
+    mentorImageRef.current = img;
+  }, []);
+
   // Invite Modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -274,6 +286,15 @@ export const ZoomMeetingPage: React.FC = () => {
   const [tatStories, setTatStories] = useState<Record<number, string>>({});
   const [tatCurrentStory, setTatCurrentStory] = useState('');
   const [showTatSettings, setShowTatSettings] = useState(false);
+
+  useEffect(() => {
+    if (ssbTatSlides[tatSlideIndex]?.imageUrl) {
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.src = ssbTatSlides[tatSlideIndex].imageUrl;
+      tatSlideImageRef.current = img;
+    }
+  }, [tatSlideIndex]);
 
   // 2. WAT State (60 Real SSB Words: 15s Per Word)
   const [watIndex, setWatIndex] = useState(0); // 0 to 59
@@ -776,8 +797,238 @@ export const ZoomMeetingPage: React.FC = () => {
   };
 
   // ──────────────────────────────────────────────────────────
-  // 4. RECORDING
+  // 4. STUDIO COMPOSITOR & RECORDING (RECORDS FULL LIVE CLASS)
   // ──────────────────────────────────────────────────────────
+  const renderStudioFrame = (ctx: CanvasRenderingContext2D, width: number, height: number, secElapsed: number) => {
+    // 1. Studio Background
+    ctx.fillStyle = '#080E18';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Main Stage Area
+    const stageX = 16;
+    const stageY = 54;
+    const stageW = 1248;
+    const stageH = 612;
+
+    ctx.save();
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(stageX, stageY, stageW, stageH, 16);
+    } else {
+      ctx.rect(stageX, stageY, stageW, stageH);
+    }
+    ctx.clip();
+
+    if (isSharingScreen && screenShareType === 'whiteboard' && whiteboardCanvasRef.current) {
+      // 2A. Interactive Whiteboard
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(stageX, stageY, stageW, stageH);
+      ctx.drawImage(whiteboardCanvasRef.current, stageX, stageY, stageW, stageH);
+
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(stageX + 16, stageY + 16, 220, 32);
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('Interactive Whiteboard', stageX + 26, stageY + 37);
+    } else if (isSharingScreen && screenShareType === 'tat') {
+      // 2B. TAT Slide Stage
+      const slide = ssbTatSlides[tatSlideIndex];
+      if (tatSlideImageRef.current && tatSlideImageRef.current.complete && tatSlideImageRef.current.naturalWidth > 0) {
+        ctx.drawImage(tatSlideImageRef.current, stageX, stageY, stageW, stageH);
+      } else {
+        ctx.fillStyle = '#141E2E';
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+      }
+
+      // Vignette
+      const grad = ctx.createLinearGradient(0, stageY, 0, stageY + stageH);
+      grad.addColorStop(0, 'rgba(0,0,0,0.8)');
+      grad.addColorStop(0.3, 'rgba(0,0,0,0.15)');
+      grad.addColorStop(0.7, 'rgba(0,0,0,0.2)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(stageX, stageY, stageW, stageH);
+
+      // Slide Title
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(slide.title, stageX + 24, stageY + 44);
+
+      // Timer & Phase
+      const timerStr = `${tatPhase === 'observe' ? 'Observe' : 'Write'}: ${Math.floor(tatTimeRemaining / 60)}m ${tatTimeRemaining % 60}s left`;
+      ctx.fillStyle = tatPhase === 'observe' ? '#EF4444' : '#10B981';
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText(timerStr, stageX + 24, stageY + 74);
+    } else if (isSharingScreen && screenShareType === 'wat') {
+      // 2C. WAT Stage
+      const word = ssbWatWords[watIndex] || 'LEADERSHIP';
+      ctx.fillStyle = '#0D1522';
+      ctx.fillRect(stageX, stageY, stageW, stageH);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 68px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(word, width / 2, stageY + stageH / 2 - 20);
+
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 22px monospace';
+      ctx.fillText(`Word ${watIndex + 1} of 60 • ${watTimeRemaining}s`, width / 2, stageY + stageH / 2 + 45);
+      ctx.textAlign = 'left';
+    } else if (isSharingScreen && screenShareType === 'srt') {
+      // 2D. SRT Stage
+      const srtObj = ssbSrtSituations[srtIndex];
+      ctx.fillStyle = '#0D1522';
+      ctx.fillRect(stageX, stageY, stageW, stageH);
+
+      ctx.fillStyle = '#E6B980';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.fillText(`Situation ${srtIndex + 1} of 15 • ${srtTimeRemaining}s left`, stageX + 50, stageY + 100);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '22px sans-serif';
+      const words = srtObj.text.split(' ');
+      let line = '';
+      let curY = stageY + 160;
+      for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > stageW - 100 && n > 0) {
+          ctx.fillText(line, stageX + 50, curY);
+          line = words[n] + ' ';
+          curY += 34;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, stageX + 50, curY);
+    } else if (isSharingScreen && screenStream && screenVideoRef.current && screenVideoRef.current.readyState >= 2) {
+      // 2E. Screen Share
+      ctx.drawImage(screenVideoRef.current, stageX, stageY, stageW, stageH);
+    } else {
+      // 2F. Live Class Mentor Teaching Stage (Lt. Vamshi E.)
+      if (mentorImageRef.current && mentorImageRef.current.complete && mentorImageRef.current.naturalWidth > 0) {
+        const img = mentorImageRef.current;
+        const imgAspect = img.width / img.height;
+        const stageAspect = stageW / stageH;
+        let drawW = stageW;
+        let drawH = stageH;
+        let offX = stageX;
+        let offY = stageY;
+        if (imgAspect > stageAspect) {
+          drawW = stageH * imgAspect;
+          offX = stageX - (drawW - stageW) / 2;
+        } else {
+          drawH = stageW / imgAspect;
+          offY = stageY - (drawH - stageH) / 2;
+        }
+        ctx.drawImage(img, offX, offY, drawW, drawH);
+      } else {
+        ctx.fillStyle = '#141F30';
+        ctx.fillRect(stageX, stageY, stageW, stageH);
+        ctx.fillStyle = '#E6B980';
+        ctx.font = 'bold 36px sans-serif';
+        ctx.fillText(mentor, stageX + 60, stageY + stageH / 2);
+      }
+
+      // Bottom shadow gradient
+      const grad = ctx.createLinearGradient(0, stageY + stageH - 120, 0, stageY + stageH);
+      grad.addColorStop(0, 'rgba(0,0,0,0)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(stageX, stageY + stageH - 120, stageW, 120);
+
+      // Mentor Nameplate
+      ctx.fillStyle = 'rgba(8, 14, 24, 0.9)';
+      ctx.fillRect(stageX + 24, stageY + stageH - 74, 380, 52);
+
+      ctx.fillStyle = '#10B981';
+      ctx.beginPath();
+      ctx.arc(stageX + 44, stageY + stageH - 48, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`${mentor} (Host)`, stageX + 60, stageY + stageH - 52);
+      ctx.fillStyle = '#E6B980';
+      ctx.font = '12px sans-serif';
+      ctx.fillText('AIR 34 CDS 2 2019 • 3 AFSB Recommended', stageX + 60, stageY + stageH - 34);
+    }
+    ctx.restore();
+
+    // 3. CANDIDATE PIP IN CORNER (Camera / Avatar)
+    const pipW = 240;
+    const pipH = 150;
+    const pipX = stageX + stageW - pipW - 16;
+    const pipY = stageY + stageH - pipH - 16;
+
+    ctx.save();
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
+    } else {
+      ctx.rect(pipX, pipY, pipW, pipH);
+    }
+    ctx.clip();
+
+    if (!isVideoOff && userVideoRef.current && userVideoRef.current.readyState >= 2) {
+      ctx.drawImage(userVideoRef.current, pipX, pipY, pipW, pipH);
+    } else {
+      ctx.fillStyle = '#161F2E';
+      ctx.fillRect(pipX, pipY, pipW, pipH);
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = 'bold 28px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('AS', pipX + pipW / 2, pipY + pipH / 2);
+      ctx.font = '11px sans-serif';
+      ctx.fillText('Camera Off', pipX + pipW / 2, pipY + pipH / 2 + 22);
+      ctx.textAlign = 'left';
+    }
+
+    // Candidate Lower-Third Tag
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(pipX, pipY + pipH - 26, pipW, 26);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(`Chest 24 (${candidateName})`, pipX + 10, pipY + pipH - 9);
+
+    ctx.restore();
+
+    // Border around Candidate PIP
+    ctx.strokeStyle = 'rgba(230, 185, 128, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (typeof (ctx as any).roundRect === 'function') {
+      (ctx as any).roundRect(pipX, pipY, pipW, pipH, 12);
+    } else {
+      ctx.rect(pipX, pipY, pipW, pipH);
+    }
+    ctx.stroke();
+
+    // 4. TOP STUDIO HEADER BAR
+    ctx.fillStyle = 'rgba(8, 14, 24, 0.95)';
+    ctx.fillRect(0, 0, width, 50);
+
+    ctx.fillStyle = '#E6B980';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('SSB BRO — LIVE MENTORSHIP STUDIO', 24, 31);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '13px sans-serif';
+    ctx.fillText(`Topic: ${topic}`, 360, 31);
+
+    // Blinking REC Indicator
+    const isBlink = Math.floor(secElapsed * 2) % 2 === 0;
+    ctx.fillStyle = isBlink ? '#EF4444' : '#7F1D1D';
+    ctx.beginPath();
+    ctx.arc(width - 140, 27, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const recDurStr = `${Math.floor(secElapsed / 60).toString().padStart(2, '0')}:${(Math.floor(secElapsed) % 60).toString().padStart(2, '0')}`;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText(`REC ${recDurStr}`, width - 126, 32);
+  };
+
   const toggleRecording = async () => {
     setShowMobileMoreSheet(false);
     if (!isRecording) {
@@ -788,33 +1039,44 @@ export const ZoomMeetingPage: React.FC = () => {
       setDriveFileUrl(null);
 
       try {
-        let stream = screenStream || userMediaStreamRef.current;
-        if (!stream) {
-          const canvas = document.createElement('canvas');
+        // Initialize Studio Compositor Canvas 1280x720 (Captures Full Live Class)
+        let canvas = recordingCanvasRef.current;
+        if (!canvas) {
+          canvas = document.createElement('canvas');
           canvas.width = 1280;
           canvas.height = 720;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.fillStyle = '#0F172A';
-            ctx.fillRect(0, 0, 1280, 720);
-            ctx.fillStyle = '#E6B980';
-            ctx.font = 'bold 36px sans-serif';
-            ctx.fillText('SSB BRO Live Mentorship Studio', 80, 320);
-            ctx.fillStyle = '#94A3B8';
-            ctx.font = '22px sans-serif';
-            ctx.fillText(`Topic: ${topic}`, 80, 370);
-            ctx.fillText(`Mentor: ${mentor} • Candidate: ${candidateName} (Chest 24)`, 80, 410);
+          recordingCanvasRef.current = canvas;
+        }
+        const ctx = canvas.getContext('2d');
+
+        // Continuous 30fps animation loop rendering the full live class
+        const startTime = Date.now();
+        const renderLoop = () => {
+          if (!ctx) return;
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          renderStudioFrame(ctx, 1280, 720, elapsedSec);
+          recordingLoopRef.current = requestAnimationFrame(renderLoop);
+        };
+        renderLoop();
+
+        // Capture continuous 30fps stream of the entire live class
+        const compositeStream: MediaStream = (canvas as any).captureStream ? (canvas as any).captureStream(30) : null;
+
+        // Merge Audio from user mic so voice is recorded into the live class video!
+        if (compositeStream && userMediaStreamRef.current) {
+          const audioTracks = userMediaStreamRef.current.getAudioTracks();
+          if (audioTracks.length > 0) {
+            compositeStream.addTrack(audioTracks[0]);
           }
-          stream = (canvas as any).captureStream ? (canvas as any).captureStream(15) : null;
         }
 
-        if (stream && typeof MediaRecorder !== 'undefined') {
+        if (compositeStream && typeof MediaRecorder !== 'undefined') {
           const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
             ? 'video/webm;codecs=vp9'
             : MediaRecorder.isTypeSupported('video/webm')
             ? 'video/webm'
             : '';
-          const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+          const recorder = mime ? new MediaRecorder(compositeStream, { mimeType: mime }) : new MediaRecorder(compositeStream);
           recorder.ondataavailable = (e) => {
             if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
           };
@@ -829,6 +1091,11 @@ export const ZoomMeetingPage: React.FC = () => {
       setRecordSeconds(0);
     } else {
       setIsRecording(false);
+      if (recordingLoopRef.current) {
+        cancelAnimationFrame(recordingLoopRef.current);
+        recordingLoopRef.current = null;
+      }
+
       const totalSecs = Math.max(recordSeconds, 1);
       const duration = `${Math.floor(totalSecs / 60).toString().padStart(2, '0')}:${(totalSecs % 60).toString().padStart(2, '0')}`;
       const timestamp = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
