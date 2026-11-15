@@ -8,23 +8,49 @@
   }
 }
 
-/* Custom refined scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Custom refined scrollbars - Sleek on desktop, completely hidden on mobile */
+@media (min-width: 769px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(230, 185, 128, 0.4);
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: #0B1422;
+/* On mobile / touch devices: hide scrollbars completely for a pristine native app look */
+@media (max-width: 768px), (pointer: coarse) {
+  * {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0px !important;
+    height: 0px !important;
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #1E314B;
-  border-radius: 4px;
+/* Universal no-scrollbar utility */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: #6F91B8;
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
 }
 
 /* Editorial quote styling */
@@ -78,9 +104,16 @@
   animation: floatReaction 2.8s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
 }
 
-/* Smooth mobile touch scrolling */
+/* Smooth mobile touch scrolling with hidden scrollbar */
 .touch-scroll {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   touch-action: pan-y;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.touch-scroll::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
 }
